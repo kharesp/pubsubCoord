@@ -1,0 +1,165 @@
+/* $Id: RoutingServiceAdministration.idl,v 1.12 2015/05/01 18:54:31 asanchez Exp $
+
+ (c) Copyright, Real-Time Innovations, $Date: 2015/05/01 18:54:31 $.
+ All rights reserved.
+ No duplications, whole or partial, manual or electronic, may be made
+ without express written permission.  Any such copies, or
+ revisions thereof, must display this notice unaltered.
+ This code contains trade secrets of Real-Time Innovations, Inc.
+
+modification history
+------------ -------
+5.10,01oct13,acr ROUTING-195: Type extensibility
+1.1e,24may11,sf  Added create, delete, add_peer, save
+1.0c,25nov09,acr Added file documentation for doxygen
+1.0a,11jul09,fcs Added XmlUrl
+1.0a,25jun09,acr Added announcement command and response
+1.0a,22jun09,fcs Modified
+1.0a,11jun09,fcs Modified
+1.0a,12may09,acr Created
+==============================================================================*/
+
+/*e \file
+  @brief IDL types used for remote administration
+*/
+
+module RTI {
+module RoutingService {
+    module Administration {
+        
+        const string COMMAND_REQUEST_TOPIC_NAME = 
+            "rti/routing_service/administration/command_request";
+        const string COMMAND_RESPONSE_TOPIC_NAME = 
+            "rti/routing_service/administration/command_response";
+        
+        /* Maximum length of an entity name (full qualified)
+        */
+        const long NAME_MAX_LENGTH = 255;
+
+        /* Maximum length of an URL content fragment
+        */
+        const long XML_URL_MAX_LENGTH = 4096;
+
+        /* Maximum length of the response message
+        */
+        const long RESPONSE_MAX_LENGTH = 4096;
+
+        /* Maximum length of a peer update description sequence
+        */
+        const long PEER_UPDATE_MAX_SEQUENCE_LENGTH = 16;
+        
+        typedef string<NAME_MAX_LENGTH> EntityName;
+
+        /* RTI Router supports two XML URLs:
+
+           1.- String URLs prefixed by the URI schema str:// and enclosed in double quotes.
+           For example:
+           str://"<dds><qos_library>...</qos_library></dds>"
+
+           2.- File URL prefixed by the URI schema file://.
+           For example:
+           file:///usr/local/default_dds.xml
+
+           If you omit the URL schema name, RTI Router will assume a file name.
+           For example:
+           /usr/local/default_dds.xml
+
+           If the content of an Xml URL is greater than XML_URL_MAX_LENGTH,
+           it will have to be send as multiple fragments.
+
+           The is_final flag indicates that the fragment is the last fragment.
+        */
+        struct XmlUrl {
+            boolean is_final;
+            string<XML_URL_MAX_LENGTH> content;
+        }; //@top-level false
+           //@Extensibility EXTENSIBLE_EXTENSIBILITY
+
+        struct EntityDescription {
+            EntityName name;
+            XmlUrl xml_url;
+        }; //@top-level false
+           //@Extensibility EXTENSIBLE_EXTENSIBILITY
+
+        struct PeerUpdateDescription {
+            EntityName domain_route_name;
+            boolean is_first_participant;
+            sequence<string<NAME_MAX_LENGTH>, PEER_UPDATE_MAX_SEQUENCE_LENGTH> peer_list;
+        }; //@top-level false
+           //@Extensibility EXTENSIBLE_EXTENSIBILITY
+
+        enum CommandKind {
+            RTI_ROUTING_SERVICE_COMMAND_LOAD = 1,
+            RTI_ROUTING_SERVICE_COMMAND_UNLOAD,
+            RTI_ROUTING_SERVICE_COMMAND_INSERT,
+            RTI_ROUTING_SERVICE_COMMAND_UPDATE,
+            RTI_ROUTING_SERVICE_COMMAND_PAUSE,
+            RTI_ROUTING_SERVICE_COMMAND_RESUME,
+            RTI_ROUTING_SERVICE_COMMAND_ENABLE,
+            RTI_ROUTING_SERVICE_COMMAND_DISABLE,
+            RTI_ROUTING_SERVICE_COMMAND_ANNOUNCE,
+            RTI_ROUTING_SERVICE_COMMAND_CREATE,
+            RTI_ROUTING_SERVICE_COMMAND_DELETE,
+            RTI_ROUTING_SERVICE_COMMAND_SAVE,
+            RTI_ROUTING_SERVICE_COMMAND_GET,
+            RTI_ROUTING_SERVICE_COMMAND_ADD_PEER
+        };
+        
+        enum CommandResponseKind {
+            RTI_ROUTING_SERVICE_COMMAND_RESPONSE_OK = 0,
+            RTI_ROUTING_SERVICE_COMMAND_RESPONSE_ANNOUNCEMENT,
+            RTI_ROUTING_SERVICE_COMMAND_RESPONSE_ERROR,
+            RTI_ROUTING_SERVICE_COMMAND_RESPONSE_ENTITY_NOT_FOUND
+        };
+        
+        union Command switch(CommandKind) {
+            case RTI_ROUTING_SERVICE_COMMAND_LOAD:
+            case RTI_ROUTING_SERVICE_COMMAND_INSERT:
+            case RTI_ROUTING_SERVICE_COMMAND_UPDATE:
+            case RTI_ROUTING_SERVICE_COMMAND_CREATE:
+                EntityDescription entity_desc;
+
+            case RTI_ROUTING_SERVICE_COMMAND_ANNOUNCE:
+            case RTI_ROUTING_SERVICE_COMMAND_UNLOAD:
+            case RTI_ROUTING_SERVICE_COMMAND_SAVE:
+            case RTI_ROUTING_SERVICE_COMMAND_GET:
+                long dummy;
+
+            case RTI_ROUTING_SERVICE_COMMAND_PAUSE:
+            case RTI_ROUTING_SERVICE_COMMAND_RESUME:
+            case RTI_ROUTING_SERVICE_COMMAND_ENABLE:
+            case RTI_ROUTING_SERVICE_COMMAND_DISABLE:
+            case RTI_ROUTING_SERVICE_COMMAND_DELETE:
+                EntityName entity_name;
+
+            case RTI_ROUTING_SERVICE_COMMAND_ADD_PEER:
+                PeerUpdateDescription peer_desc;
+        }; //@top-level false
+           //@Extensibility MUTABLE_EXTENSIBILITY
+
+        struct CommandId {
+            long host;
+            long app;
+            long invocation;
+        }; //@top-level false
+           //@Extensibility FINAL_EXTENSIBILITY
+        
+        struct CommandRequest {
+            CommandId id;
+            EntityName target_router;
+            Command command;
+        }; //@top-level true
+           //@Extensibility MUTABLE_EXTENSIBILITY
+
+        struct CommandResponse {
+            CommandId id;
+            CommandResponseKind kind;
+            string <RESPONSE_MAX_LENGTH> message;
+            boolean is_final;
+        }; //@top-level true
+           //@Extensibility EXTENSIBLE_EXTENSIBILITY
+
+    };
+ };
+};
+

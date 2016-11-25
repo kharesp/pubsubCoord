@@ -1,0 +1,78 @@
+<?xml version="1.0"?>
+<dds xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="../../resource/schema/rti_routing_service.xsd">
+
+    <routing_service name="PubSubCoord">
+
+        <annotation>
+            <documentation>
+                Enables remote administration
+            </documentation>
+        </annotation>
+
+        <administration>
+            <domain_id>55</domain_id>
+        </administration>
+
+        <!--
+        <monitoring>
+            <domain_id>56</domain_id>
+            <statistics_sampling_period>
+                <sec>1</sec>
+                <nanosec>0</nanosec>
+            </statistics_sampling_period>
+            <status_publication_period>
+                <sec>5</sec>
+                <nanosec>0</nanosec>
+            </status_publication_period>
+        </monitoring>
+
+        <domain_route name="RemoteConfigExample" enabled="true">
+            <participant_1>
+                <domain_id>0</domain_id>
+            </participant_1>
+            <participant_2>
+                <domain_id>1</domain_id>
+            </participant_2>
+
+            <session name="Session" enabled="true">
+
+                <auto_topic_route name="Shapes" enabled="false">
+
+                    <input participant="1">
+                        <allow_topic_name_filter>*</allow_topic_name_filter>
+                        <allow_registered_type_name_filter>ShapeType</allow_registered_type_name_filter>
+                    </input>
+                    <output>
+                        <allow_topic_name_filter>*</allow_topic_name_filter>
+                        <allow_registered_type_name_filter>ShapeType</allow_registered_type_name_filter>
+                    </output>
+                </auto_topic_route>
+
+                <topic_route name="SquaresToCircles" enabled="false">
+                    <input participant="1">
+                        <topic_name>Square</topic_name>
+                        <registered_type_name>ShapeType</registered_type_name>
+                    </input>
+                    <output>
+                        <topic_name>Circle</topic_name>
+                        <registered_type_name>ShapeType</registered_type_name>
+                    </output>
+                </topic_route>
+
+                <topic_route name="SquaresToTriangles" enabled="false">
+                    <input participant="1">
+                        <topic_name>Square</topic_name>
+                        <registered_type_name>ShapeType</registered_type_name>
+                    </input>
+                    <output>
+                        <topic_name>Triangle</topic_name>
+                        <registered_type_name>ShapeType</registered_type_name>
+                    </output>
+                </topic_route>
+
+            </session>
+        </domain_route>
+        -->
+    </routing_service>
+
+</dds>

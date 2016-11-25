@@ -1,0 +1,8 @@
+.gradle/
+build/
+bin/
+.settings/
+.classpath
+.project
+libs/
+src/main/java/com/
