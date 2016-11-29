@@ -103,9 +103,9 @@ public class RoutingBroker {
         			withMode(CreateMode.PERSISTENT).
         			forPath(CuratorHelper.ROUTING_BROKER_PATH, new byte[0]);
         	}
-        	if(client.checkExists().forPath(CuratorHelper.TOPIC_PATH)== null){
+        	if(client.checkExists().forPath(CuratorHelper.LEADER_PATH)== null){
         		logger.debug(String.format("zk path:%s does not exist. RB:%s will create zk path:%s\n",
-        				CuratorHelper.TOPIC_PATH,rbAddress,CuratorHelper.TOPIC_PATH));
+        				CuratorHelper.LEADER_PATH,rbAddress,CuratorHelper.LEADER_PATH));
         		client.create().
         			withMode(CreateMode.PERSISTENT).
         			forPath(CuratorHelper.LEADER_PATH, new byte[0]);
@@ -154,7 +154,7 @@ public class RoutingBroker {
                     if (!topic_publishersChildrenCache_map.containsKey(topic)) {
                     	logger.debug(String.format("RB:%s was assigned new topic:%s.\n "
                     			+ "Installing listeners to be notified when publishers for topic:%s join\n",rbAddress,topic,topic));
-                        String publishersForTopicPath= topic + "/pub";
+                        String publishersForTopicPath= CuratorHelper.TOPIC_PATH+ "/" + topic + "/pub";
                         PathChildrenCache topicPubCache = new PathChildrenCache(client, publishersForTopicPath, true);
                         topicPubCache.start();
                         topic_publishersChildrenCache_map.put(topic, topicPubCache);
@@ -163,7 +163,7 @@ public class RoutingBroker {
                     if (!topic_subChildrenCache_map.containsKey(topic)) {
                     	logger.debug(String.format("RB:%s was assigned new topic:%s.\n "
                     			+ "Installing listeners to be notified when subscribers for topic:%s join\n",rbAddress,topic,topic));
-                        String subscribersForTopicPath = topic + "/sub";
+                        String subscribersForTopicPath = CuratorHelper.TOPIC_PATH+ "/" + topic + "/sub";
                         PathChildrenCache topicSubCache = new PathChildrenCache(client, subscribersForTopicPath, true);
                         topicSubCache.start();
                         topic_subChildrenCache_map.put(topic, topicSubCache);
@@ -192,12 +192,12 @@ public class RoutingBroker {
                     	if(!p1_eb_topics_map.containsKey(eb_address)){
                     		p1_eb_topics_map.put(eb_address, new HashSet<String>());
                     		p1_eb_topics_map.get(eb_address).add(topic);
-                    		logger.debug(String.format("Adding eb:%s as peer for RB_P1_BIND_PORT:%d\n",
+                    		logger.debug(String.format("Adding eb:%s as peer for RB_P1_BIND_PORT:%s\n",
                     				eb_locator,RB_P1_BIND_PORT));
                     		rs.addPeer(domainRouteName, eb_locator, true);
                     		
                     	}else{
-                    		logger.debug(String.format("eb:%s already exists as peer for RB_P1_BIND_PORT:%d\n", 
+                    		logger.debug(String.format("eb:%s already exists as peer for RB_P1_BIND_PORT:%s\n", 
                     				eb_locator,RB_P1_BIND_PORT));
                     		p1_eb_topics_map.get(eb_address).add(topic);
                     	}
@@ -212,6 +212,7 @@ public class RoutingBroker {
                             		logger.debug(String.format("Both publishers and subscribers for topic:%s exist,"
                             				+ " creating TopicRoute for topic:%s\n",topic,topic));
                             		createTopicRoute(topic,type_name);
+                            		topicRoutesList.add(topic);
                             	}
                             }
                         }
@@ -220,10 +221,10 @@ public class RoutingBroker {
                     case CHILD_REMOVED: {
                     	String eb_path=event.getData().getPath();
                     	String topic= eb_path.split("/")[2];
+                    	logger.debug(String.format("EB:%s was removed\n", eb_path));
+
                     	PathChildrenCache topic_pub_children_cache= topic_publishersChildrenCache_map.get(topic);
                     	topic_pub_children_cache.rebuild();
-
-                    	logger.debug(String.format("EB:%s was removed\n", eb_path));
 
                     	if(topic_pub_children_cache.getCurrentData().isEmpty()){
                     		logger.debug(String.format("There are no publishing domains for topic:%s\n", topic));
@@ -265,12 +266,12 @@ public class RoutingBroker {
                     	if(!p2_eb_topics_map.containsKey(eb_address)){
                     		p2_eb_topics_map.put(eb_address, new HashSet<String>());
                     		p2_eb_topics_map.get(eb_address).add(topic);
-                    		logger.debug(String.format("Adding eb:%s as peer for RB_P2_BIND_PORT:%d\n",
+                    		logger.debug(String.format("Adding eb:%s as peer for RB_P2_BIND_PORT:%s\n",
                     				eb_locator,RB_P2_BIND_PORT));
                     		rs.addPeer(domainRouteName, eb_locator, false);
                     		
                     	}else{
-                    		logger.debug(String.format("eb:%s already exists as peer for RB_P2_BIND_PORT:%d\n", 
+                    		logger.debug(String.format("eb:%s already exists as peer for RB_P2_BIND_PORT:%s\n", 
                     				eb_locator,RB_P2_BIND_PORT));
                     		p1_eb_topics_map.get(eb_address).add(topic);
                     	}
@@ -285,6 +286,7 @@ public class RoutingBroker {
                             		logger.debug(String.format("Both publishers and subscribers for topic:%s exist,"
                             				+ " creating TopicRoute for topic:%s\n",topic,topic));
                             		createTopicRoute(topic,type_name);
+                            		topicRoutesList.add(topic);
                             	}
                             }
                         }

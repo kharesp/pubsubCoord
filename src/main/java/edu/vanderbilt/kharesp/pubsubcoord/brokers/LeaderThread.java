@@ -71,7 +71,10 @@ public class LeaderThread implements Runnable {
 				// When a new topic is created
 				case CHILD_ADDED: {
 					
-					logger.debug(String.format("Topic:%s created\n",event.getData().getPath() ));
+					String topic_path=event.getData().getPath();
+					String topic=topic_path.split("/")[2];
+
+					logger.debug(String.format("Topic:%s created\n",topic));
 
 					// Update this rbChildrenCache (Synchronizing) to get the updated list of RBs
 					rbChildrenCache.rebuild();
@@ -92,19 +95,19 @@ public class LeaderThread implements Runnable {
 
 					//least loaded RB
 					ChildData rbData = rbChildrenCache.getCurrentData().get(min_index);
-					logger.debug(String.format("New topic:%s will be assigned to least loaded RB:%s\n",event.getData().getPath(),
+					logger.debug(String.format("New topic:%s will be assigned to least loaded RB:%s\n",topic,
 							rbData.getPath()));
 
 					//assign the new topic to the least loaded RB
 					@SuppressWarnings("unchecked")
 					HashSet<String> topicSet = (HashSet<String>) CuratorHelper.deserialize(rbData.getData());
-					topicSet.add(event.getData().getPath());
+					topicSet.add(topic);
 					client.setData().forPath(rbData.getPath(), CuratorHelper.serialize(topicSet));
 					
 					logger.debug(String.format("RB:%s locator assigned to topic:%s node\n",
-							rbData.getPath(),event.getData().getPath()));
+							rbData.getPath(),topic));
 					//Set topic node's data to chosen RB's address
-					client.setData().forPath(event.getData().getPath(), rbData.getPath().split("/")[2].getBytes());
+					client.setData().forPath(topic_path, rbData.getPath().split("/")[2].getBytes());
 
 					break;
 				}
