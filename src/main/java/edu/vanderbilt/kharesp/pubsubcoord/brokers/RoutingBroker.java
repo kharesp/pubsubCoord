@@ -2,10 +2,6 @@ package edu.vanderbilt.kharesp.pubsubcoord.brokers;
 
 import java.net.*;
 import java.util.*;
-import com.rti.idl.RTI.RoutingService.Administration.CommandKind;
-import com.rti.dds.publication.builtin.*;
-import com.rti.dds.subscription.builtin.*;
-import org.apache.zookeeper.KeeperException;
 import org.apache.zookeeper.CreateMode;
 import org.apache.curator.framework.CuratorFramework;
 import org.apache.curator.framework.CuratorFrameworkFactory;
@@ -24,6 +20,8 @@ public class RoutingBroker {
     // Public facing ports for interconnection of domains
     private static final String RB_P1_BIND_PORT = "8500"; //only for receiving data 
     private static final String RB_P2_BIND_PORT = "8501"; //only for sending data 
+    //public facing port of local domains
+    private static final String EB_P2_BIND_PORT = "8502"; 
 
     private static final String DOMAIN_ROUTE_NAME_PREFIX = "RoutingBrokerDomainRoute";
     private static final String TOPIC_ROUTE_CODE = "107"; //this means letter 'k'
@@ -32,25 +30,26 @@ public class RoutingBroker {
     private String rbAddress;
     private String domainRouteName;
 
-    private String zkConnector= "localhost:2181";
+    private String zkConnector;
     private CuratorFramework client = null;
 
     // Curator node cache for this routing broker's znode under /routingBroker
     private NodeCache rbNodeCache = null;
-    // Curator path children cache for publishers of an assigned topic t under /topics/t/pub
-    private HashMap<String, PathChildrenCache> publishersForTopic = new HashMap<String, PathChildrenCache>();
-    // Curator path children cache for subscribers of an assigned topic t under /topics/t/sub
-    private HashMap<String, PathChildrenCache> subscribersForTopic = new HashMap<String, PathChildrenCache>();
 
-    // List of Edge Broker locators connected to RB_P1_BIND_PORT
-    private HashSet<String> p1PeerList = new HashSet<String>();
-    // List of Edge Broker locators connected to RB_P2_BIND_PORT
-    private HashSet<String> p2PeerList = new HashSet<String>();
+    // Curator path children cache for publishers of an assigned topic t under /topics/t/pub
+    private HashMap<String, PathChildrenCache> topic_publishersChildrenCache_map = new HashMap<String, PathChildrenCache>();
+    // Curator path children cache for subscribers of an assigned topic t under /topics/t/sub
+    private HashMap<String, PathChildrenCache> topic_subChildrenCache_map = new HashMap<String, PathChildrenCache>();
+
+    // Map for keeping track of active topics in EB domains interfacing with RB_P1_BIND_PORT
+    private HashMap<String,HashSet<String>> p1_eb_topics_map=new HashMap<>();
+    // Map for keeping track of active topics in EB domains interfacing with RB_P2_BIND_PORT
+    private HashMap<String,HashSet<String>> p2_eb_topics_map=new HashMap<>();
     
     // Used for managing topics assigned to this routing broker
-    private HashSet<String> subTopicList = new HashSet<String>();
-    private HashSet<String> pubTopicList = new HashSet<String>();
-    private HashSet<String> topicList = new HashSet<String>();
+    private HashSet<String> subscribedTopics = new HashSet<String>();
+    private HashSet<String> publishedTopics = new HashSet<String>();
+    private HashSet<String> topicRoutesList = new HashSet<String>();
 
     public RoutingBroker(String zkConnector) {
     	//configure logger
@@ -64,7 +63,7 @@ public class RoutingBroker {
             logger.error(e.getMessage(),e);
         }
 
-    	logger.debug(String.format("Starting Routing Broker at:%s  with ZK Connector:%s\n",
+    	logger.debug(String.format("Starting Routing Broker at:%s with ZK Connector:%s\n",
     			rbAddress,zkConnector));
 
         // Create Routing Service remote administrator 
@@ -97,11 +96,19 @@ public class RoutingBroker {
         
         try{
         	// Ensure ZK paths /routingBroker and /leader exist
-        	try {
-        		client.create().withMode(CreateMode.PERSISTENT).forPath(CuratorHelper.ROUTING_BROKER_PATH, new byte[0]);
-        		client.create().withMode(CreateMode.PERSISTENT).forPath(CuratorHelper.LEADER_PATH, new byte[0]);
-        	} catch (KeeperException.NodeExistsException e) {
-        		System.out.println("Exception:" + e.getMessage());
+        	if(client.checkExists().forPath(CuratorHelper.ROUTING_BROKER_PATH) == null){
+        		logger.debug(String.format("zk path:%s does not exist. RB:%s will create zk path:%s\n",
+        				CuratorHelper.ROUTING_BROKER_PATH,rbAddress,CuratorHelper.ROUTING_BROKER_PATH));
+        		client.create().
+        			withMode(CreateMode.PERSISTENT).
+        			forPath(CuratorHelper.ROUTING_BROKER_PATH, new byte[0]);
+        	}
+        	if(client.checkExists().forPath(CuratorHelper.TOPIC_PATH)== null){
+        		logger.debug(String.format("zk path:%s does not exist. RB:%s will create zk path:%s\n",
+        				CuratorHelper.TOPIC_PATH,rbAddress,CuratorHelper.TOPIC_PATH));
+        		client.create().
+        			withMode(CreateMode.PERSISTENT).
+        			forPath(CuratorHelper.LEADER_PATH, new byte[0]);
         	}
         	// Create a NodeCache for this routing broker
             rbNodeCache = new NodeCache(client, CuratorHelper.ROUTING_BROKER_PATH + "/" + rbAddress);
@@ -110,8 +117,10 @@ public class RoutingBroker {
             addRbNodeListener(rbNodeCache);
 
             // Create znode with ephemeral mode for this routing broker
+            logger.debug(String.format("Creating znode for this routing broker:%s\n", rbAddress));
             HashSet<String> topicSet = new HashSet<String>();
-            client.create().withMode(CreateMode.EPHEMERAL).
+            client.create().
+            	withMode(CreateMode.EPHEMERAL).
             	forPath(ZKPaths.makePath(CuratorHelper.ROUTING_BROKER_PATH, rbAddress), CuratorHelper.serialize(topicSet));
 
             // Create a thread for leader election and some work done by a leader
@@ -142,22 +151,22 @@ public class RoutingBroker {
 
                 for (String topic : topicSet) {
                 	// For a new topic t, register path children listeners for /topics/t/pub and /topics/t/sub
-                    if (!publishersForTopic.containsKey(topic)) {
+                    if (!topic_publishersChildrenCache_map.containsKey(topic)) {
                     	logger.debug(String.format("RB:%s was assigned new topic:%s.\n "
                     			+ "Installing listeners to be notified when publishers for topic:%s join\n",rbAddress,topic,topic));
                         String publishersForTopicPath= topic + "/pub";
                         PathChildrenCache topicPubCache = new PathChildrenCache(client, publishersForTopicPath, true);
                         topicPubCache.start();
-                        publishersForTopic.put(topic, topicPubCache);
+                        topic_publishersChildrenCache_map.put(topic, topicPubCache);
                         addPubChildrenListener(topicPubCache);
                     }
-                    if (!subscribersForTopic.containsKey(topic)) {
+                    if (!topic_subChildrenCache_map.containsKey(topic)) {
                     	logger.debug(String.format("RB:%s was assigned new topic:%s.\n "
                     			+ "Installing listeners to be notified when subscribers for topic:%s join\n",rbAddress,topic,topic));
                         String subscribersForTopicPath = topic + "/sub";
                         PathChildrenCache topicSubCache = new PathChildrenCache(client, subscribersForTopicPath, true);
                         topicSubCache.start();
-                        subscribersForTopic.put(topic, topicSubCache);
+                        topic_subChildrenCache_map.put(topic, topicSubCache);
                         addSubChildrenListener(topicSubCache);
                     }
                 }
@@ -169,41 +178,66 @@ public class RoutingBroker {
             @Override
             public void childEvent(CuratorFramework client, PathChildrenCacheEvent event) throws Exception {
                 switch (event.getType()) {
-                    //When a new publisher for topic joins 
+                    //When a new domain with publishers for topic t joins 
                     case CHILD_ADDED: {
-                        // Deserialize publication built-in topic data
-                        PublicationBuiltinTopicData pubBuiltinTopicData =
-                                (PublicationBuiltinTopicData) CuratorHelper.deserialize(event.getData().getData());
-                        String ebLocator = "tcpv4_wan://" + new String(pubBuiltinTopicData.user_data.value.toArrayByte(null));
-                        String topicName = pubBuiltinTopicData.topic_name;
-                        
-                        logger.debug(String.format("New Publisher with ebLocator:%s joined for topic:%s\n", 
-                        		ebLocator,topicName));
+                    	String eb_path=event.getData().getPath();
+                    	String topic= eb_path.split("/")[2];
+                    	String type_name=new String(event.getData().getData());
+                    	String eb_address= eb_path.split("/")[4];
+                    	String eb_locator="tcpv4_wan://"+eb_address+":"+EB_P2_BIND_PORT;
 
-                        // If edge broker's locator is not added in peer list, needs to be added
-                        // call addPeer function to add this peer into Routing Service
-                        if (!p1PeerList.contains(ebLocator)) {
-                            p1PeerList.add(ebLocator);
-                            logger.debug(String.format("Adding ebLocator:%s for new publisher for topic:%s to RB_P1_BIND_PORT PeerList\n", 
-                        		ebLocator,topicName));
-                            rs.addPeer(domainRouteName,ebLocator, true);
-                        }
+                    	logger.debug(String.format("Publishers for topic:%s discovered in EB:%s domain\n",
+                    			topic,eb_address));
+                    	
+                    	if(!p1_eb_topics_map.containsKey(eb_address)){
+                    		p1_eb_topics_map.put(eb_address, new HashSet<String>());
+                    		p1_eb_topics_map.get(eb_address).add(topic);
+                    		logger.debug(String.format("Adding eb:%s as peer for RB_P1_BIND_PORT:%d\n",
+                    				eb_locator,RB_P1_BIND_PORT));
+                    		rs.addPeer(domainRouteName, eb_locator, true);
+                    		
+                    	}else{
+                    		logger.debug(String.format("eb:%s already exists as peer for RB_P1_BIND_PORT:%d\n", 
+                    				eb_locator,RB_P1_BIND_PORT));
+                    		p1_eb_topics_map.get(eb_address).add(topic);
+                    	}
 
-                        // if publication topic route is not created, needs to be created
-                        if (!pubTopicList.contains(topicName)) {
-                            pubTopicList.add(topicName);
-                            // topic route is created only when both subscription and publication exist
-                            if (subTopicList.contains(topicName) && pubTopicList.contains(topicName))
-                                topicList.add(topicName);
-                            if (topicList.contains(topicName)){
-                            	logger.debug(String.format("Both publishers and subscribers for topic:%s exist,"
-                            			+ " creating TopicRoute for topic:%s\n",topicName,topicName));
-                                createTopicRoute(pubBuiltinTopicData.topic_name,pubBuiltinTopicData.type_name);
+                        // if topic route is not created, it needs to be created
+                        if (!publishedTopics.contains(topic)) {
+                            publishedTopics.add(topic);
+                            //check if subscribers for this topic exist
+                            if(subscribedTopics.contains(topic)){
+                            	//Create topic route only if it does not already exist
+                            	if(!topicRoutesList.contains(topic)){
+                            		logger.debug(String.format("Both publishers and subscribers for topic:%s exist,"
+                            				+ " creating TopicRoute for topic:%s\n",topic,topic));
+                            		createTopicRoute(topic,type_name);
+                            	}
                             }
                         }
                         break;
                     }
                     case CHILD_REMOVED: {
+                    	String eb_path=event.getData().getPath();
+                    	String topic= eb_path.split("/")[2];
+                    	PathChildrenCache topic_pub_children_cache= topic_publishersChildrenCache_map.get(topic);
+                    	topic_pub_children_cache.rebuild();
+
+                    	logger.debug(String.format("EB:%s was removed\n", eb_path));
+
+                    	if(topic_pub_children_cache.getCurrentData().isEmpty()){
+                    		logger.debug(String.format("There are no publishing domains for topic:%s\n", topic));
+                    		publishedTopics.remove(topic);
+                    		if(topicRoutesList.contains(topic)){
+                    			topicRoutesList.remove(topic);
+                    			logger.debug(String.format("Publishing domains for topic:%s do not exist.\n"
+                    					+ "Removing topic route:%s\n",topic,String.format("%s::%sTopicSession::%sTopicRoute",
+                    							domainRouteName,topic,topic)));
+                    			rs.deleteTopicRoute(String.format("%s::%sTopicSession::%sTopicRoute",
+                    					domainRouteName,topic,topic) );
+                    		}
+                    	}
+                    	
                         break;
                     }
 				default:
@@ -217,44 +251,66 @@ public class RoutingBroker {
             @Override
             public void childEvent(CuratorFramework client, PathChildrenCacheEvent event) throws Exception {
                 switch (event.getType()) {
-                    // When a new subscriber for topic joins
+                    // When a local domain with subscribers for topic t is discovered 
                     case CHILD_ADDED: {
+                    	String eb_path=event.getData().getPath();
+                    	String topic= eb_path.split("/")[2];
+                    	String type_name=new String(event.getData().getData());
+                    	String eb_address= eb_path.split("/")[4];
+                    	String eb_locator="tcpv4_wan://"+eb_address+":"+EB_P2_BIND_PORT;
 
-                        // Deserialize subscription built-in topic data
-                        SubscriptionBuiltinTopicData subBuiltinTopicData =
-                                (SubscriptionBuiltinTopicData) CuratorHelper.deserialize(event.getData().getData());
-                        String ebLocator = "tcpv4_wan://" + new String(subBuiltinTopicData.user_data.value.toArrayByte(null));
+                    	logger.debug(String.format("Subscriber for topic:%s discovered in EB:%s domain\n",
+                    			topic,eb_address));
+                    	
+                    	if(!p2_eb_topics_map.containsKey(eb_address)){
+                    		p2_eb_topics_map.put(eb_address, new HashSet<String>());
+                    		p2_eb_topics_map.get(eb_address).add(topic);
+                    		logger.debug(String.format("Adding eb:%s as peer for RB_P2_BIND_PORT:%d\n",
+                    				eb_locator,RB_P2_BIND_PORT));
+                    		rs.addPeer(domainRouteName, eb_locator, false);
+                    		
+                    	}else{
+                    		logger.debug(String.format("eb:%s already exists as peer for RB_P2_BIND_PORT:%d\n", 
+                    				eb_locator,RB_P2_BIND_PORT));
+                    		p1_eb_topics_map.get(eb_address).add(topic);
+                    	}
 
-                        String topicName = subBuiltinTopicData.topic_name;
-                        
-                        logger.debug(String.format("New Subscriber with ebLocator:%s joined for topic:%s\n", 
-                        		ebLocator,topicName));
-
-                        // If edge broker's locator is not added in peer list, needs to be added
-                        // call addPeer function to add this peer into Routing Service
-                        if (!p2PeerList.contains(ebLocator)) {
-                            p2PeerList.add(ebLocator);
-                            logger.debug(String.format("Adding ebLocator:%s for new subscriber for topic:%s to RB_P2_BIND_PORT PeerList\n", 
-                            		ebLocator,topicName));
-                            rs.addPeer(domainRouteName,ebLocator, false);
-                        }
-
-                        // if subscription topic route is not created, needs to be created
-                        if (!subTopicList.contains(topicName)) {
-                            subTopicList.add(topicName);
-                            // topic route is created only when both subscription and publication exist
-                            if (subTopicList.contains(topicName) && pubTopicList.contains(topicName))
-                                topicList.add(topicName);
-                            if (topicList.contains(topicName)){
-                            	logger.debug(String.format("Both publishers and subscribers for topic:%s exist,"
-                            			+ " creating TopicRoute for topic:%s\n",topicName,topicName));
-                                createTopicRoute(subBuiltinTopicData.topic_name,subBuiltinTopicData.type_name);
+                        // if topic route is not created, it needs to be created
+                        if (!subscribedTopics.contains(topic)) {
+                            subscribedTopics.add(topic);
+                            //check if publishers for this topic exist
+                            if(publishedTopics.contains(topic)){
+                            	//Create topic route only if it does not already exist
+                            	if(!topicRoutesList.contains(topic)){
+                            		logger.debug(String.format("Both publishers and subscribers for topic:%s exist,"
+                            				+ " creating TopicRoute for topic:%s\n",topic,topic));
+                            		createTopicRoute(topic,type_name);
+                            	}
                             }
                         }
-
                         break;
                     }
                     case CHILD_REMOVED: {
+                    	String eb_path=event.getData().getPath();
+                    	String topic= eb_path.split("/")[2];
+
+                    	logger.debug(String.format("EB:%s was removed\n", eb_path));
+
+                    	PathChildrenCache topic_sub_children_cache= topic_subChildrenCache_map.get(topic);
+                    	topic_sub_children_cache.rebuild();
+
+                    	if(topic_sub_children_cache.getCurrentData().isEmpty()){
+                    		logger.debug(String.format("There are no subscribing domains for topic:%s\n", topic));
+                    		subscribedTopics.remove(topic);
+                    		if(topicRoutesList.contains(topic)){
+                    			topicRoutesList.remove(topic);
+                    			logger.debug(String.format("Subscribing domains for topic:%s do not exist.\n"
+                    					+ "Removing topic route:%s\n",topic,String.format("%s::%sTopicSession::%sTopicRoute",
+                    							domainRouteName,topic,topic)));
+                    			rs.deleteTopicRoute(String.format("%s::%sTopicSession::%sTopicRoute",
+                    					domainRouteName,topic,topic) );
+                    		}
+                    	}
                         break;
                     }
 				default:
@@ -267,8 +323,7 @@ public class RoutingBroker {
     	logger.debug(String.format("Creating domain route:%s for interconnecting domains between:%s and %s",
     			domainRouteName,RB_P1_BIND_PORT,RB_P2_BIND_PORT));
 
-    	rs.sendRequest(CommandKind.RTI_ROUTING_SERVICE_COMMAND_CREATE, 
-    			 "str://\"<domain_route name=\"" + domainRouteName + "\">" +
+    	rs.createDomainRoute("str://\"<domain_route name=\"" + domainRouteName + "\">" +
                          "<entity_monitoring>" +
                          "<historical_statistics><up_time>true</up_time></historical_statistics>" +
                          "</entity_monitoring>" +
@@ -309,10 +364,11 @@ public class RoutingBroker {
                          "</participant_2>" +
                          "</domain_route>\"");
     }
+    
     private void createTopicRoute(String topic_name,String type_name) {
     	logger.debug(String.format("Creating TopicRoute for topic:%s\n",topic_name ));
 
-    	rs.sendRequest(CommandKind.RTI_ROUTING_SERVICE_COMMAND_CREATE, 
+    	rs.createTopicRoute(domainRouteName,
     			  "str://\"<session name=\"" + topic_name + "TopicSession\">" +
                           "<topic_route name=\"" + topic_name + "TopicRoute\">" +
                           "<route_types>true</route_types>" +

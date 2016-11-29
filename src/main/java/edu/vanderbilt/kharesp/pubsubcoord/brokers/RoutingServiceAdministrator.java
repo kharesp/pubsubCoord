@@ -67,6 +67,9 @@ public class RoutingServiceAdministrator {
 		}
 	}
 
+	public void removePeer(String domainRouteName,String peerLocator,boolean isFirstParticipant){
+		
+	}
 	public void addPeer(String domainRouteName,String peerLocator,boolean isFirstParticipant) {
 		try {
 			logger.debug(String.format("Adding Peer:%s for domainRouteName:%s at firstParticipant:%s\n",
@@ -84,10 +87,12 @@ public class RoutingServiceAdministrator {
             request.getData().command.peer_desc.peer_list.add(peerLocator);
 
             requester.sendRequest(request);
-            System.out.println("Sent request: "
-                    + request.getData().id.host + "(host_id), "
-                    + request.getData().id.app + "(app_id), "
-                    + request.getData().id.invocation + "(invocation_id)");
+
+			logger.debug(String.format("Sent request:%s with host_id:%s, app_id:%d, invocation id:%d\n",
+					CommandKind.RTI_ROUTING_SERVICE_COMMAND_ADD_PEER,
+					request.getData().id.host,
+					request.getData().id.app,
+					request.getData().id.invocation));
 
         } catch (Exception e) {
 			logger.error(e.getMessage(),e);
@@ -96,24 +101,85 @@ public class RoutingServiceAdministrator {
 
 	}
 
-	public void sendRequest(CommandKind command, String commandString) {
-		logger.debug(String.format("Sending command request:%s\n", command.name()));
+	public void createDomainRoute(String commandString) {
+		logger.debug(String.format("Creating Domain Route\n"));
 		try {
 			WriteSample<CommandRequest> request = requester.createRequestSample();
 			request.getData().id.host = hostAddress.hashCode();
 			request.getData().id.app = Integer.parseInt(processId);
 			request.getData().id.invocation = ++invocation;
 			request.getData().target_router = TARGET_ROUTER;
-			request.getData().command._d = command;
+			request.getData().command._d = CommandKind.RTI_ROUTING_SERVICE_COMMAND_CREATE;
 			request.getData().command.entity_desc.xml_url.content = commandString;
 			request.getData().command.entity_desc.xml_url.is_final = true;
 			requester.sendRequest(request);
-			logger.debug(String.format("Sent command request:%s with host_id:%s, app_id:%d, invocation id:%d",
-					command.name(),request.getData().id.host,request.getData().id.app,request.getData().id.invocation));
+
+			logger.debug(String.format("Sent request:%s with host_id:%s, app_id:%d, invocation id:%d\n",
+					CommandKind.RTI_ROUTING_SERVICE_COMMAND_CREATE.name(),
+					request.getData().id.host,
+					request.getData().id.app,
+					request.getData().id.invocation));
 
 		} catch (Exception e) {
 			logger.error(e.getMessage(),e);
 			throw e;
+		}
+	}
+
+	public void createTopicRoute(String domainRouteName, String commandString) {
+		logger.debug(String.format("Creating Topic Route\n"));
+		try {
+			WriteSample<CommandRequest> request = requester.createRequestSample();
+			request.getData().id.host = hostAddress.hashCode();
+			request.getData().id.app = Integer.parseInt(processId);
+			request.getData().id.invocation = ++invocation;
+			request.getData().target_router = TARGET_ROUTER;
+			request.getData().command._d = CommandKind.RTI_ROUTING_SERVICE_COMMAND_CREATE;
+			request.getData().command.entity_desc.name = domainRouteName;
+			request.getData().command.entity_desc.xml_url.content = commandString;
+			request.getData().command.entity_desc.xml_url.is_final = true;
+			requester.sendRequest(request);
+
+			logger.debug(String.format("Sent command request:%s with host_id:%s, app_id:%d, invocation id:%d\n",
+					CommandKind.RTI_ROUTING_SERVICE_COMMAND_CREATE.name(),
+					request.getData().id.host,
+					request.getData().id.app,
+					request.getData().id.invocation));
+
+		} catch (Exception e) {
+			logger.error(e.getMessage(),e);
+			throw e;
+		}
+	}
+	public void deleteTopicRoute(String entityName ){
+		logger.debug(String.format("Deleting Topic route:%s\n", entityName));
+		try{
+			WriteSample<CommandRequest> request = requester.createRequestSample();
+			request.getData().id.host = hostAddress.hashCode();
+			request.getData().id.app = Integer.parseInt(processId);
+			request.getData().id.invocation = ++invocation;
+			request.getData().target_router = TARGET_ROUTER;
+			request.getData().command._d = CommandKind.RTI_ROUTING_SERVICE_COMMAND_DELETE;
+			request.getData().command.entity_name=entityName;
+			requester.sendRequest(request);
+
+			logger.debug(String.format("Sent command request:%s with host_id:%s, app_id:%d, invocation id:%d\n",
+					CommandKind.RTI_ROUTING_SERVICE_COMMAND_DELETE.name(),
+					request.getData().id.host,
+					request.getData().id.app,
+					request.getData().id.invocation));
+			
+		}catch(Exception e){
+			logger.error(e.getMessage(),e);
+			throw e;
+		}
+	}
+	public static void main(String args[]){
+		try {
+			RoutingServiceAdministrator rs= new RoutingServiceAdministrator("127.0.1.1");
+			rs.deleteTopicRoute("EdgeBrokerDomainRoute@127.0.1.1::Hello,World::Hello,World");
+		} catch (Exception e) {
+			e.printStackTrace();
 		}
 	}
 

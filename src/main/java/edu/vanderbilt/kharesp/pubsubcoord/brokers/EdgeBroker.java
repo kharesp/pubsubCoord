@@ -8,7 +8,6 @@ import org.apache.curator.utils.CloseableUtils;
 import org.apache.log4j.Logger;
 import org.apache.log4j.PropertyConfigurator;
 import org.apache.zookeeper.CreateMode;
-import org.apache.zookeeper.KeeperException;
 import com.rti.dds.domain.DomainParticipant;
 import com.rti.dds.domain.DomainParticipantFactory;
 import com.rti.dds.domain.DomainParticipantFactoryQos;
@@ -20,7 +19,6 @@ import com.rti.dds.publication.builtin.PublicationBuiltinTopicDataTypeSupport;
 import com.rti.dds.subscription.Subscriber;
 import com.rti.dds.subscription.builtin.SubscriptionBuiltinTopicDataDataReader;
 import com.rti.dds.subscription.builtin.SubscriptionBuiltinTopicDataTypeSupport;
-import com.rti.idl.RTI.RoutingService.Administration.CommandKind;
 
 public class EdgeBroker {
 	// Domain id in which Routing Brokers operate in the cloud
@@ -82,13 +80,11 @@ public class EdgeBroker {
         
         try{
         	// Ensure /topics path exists 
-        	try {
-        		logger.debug(String.format("EdgeBroker:%s ensure zk path %s exists\n", ebAddress,CuratorHelper.TOPIC_PATH));
+        	if (client.checkExists().forPath(CuratorHelper.TOPIC_PATH)==null){
+        		logger.debug(String.format("zk path %s does not exist. EB: %s creating zk path:%s\n",
+        				CuratorHelper.TOPIC_PATH,ebAddress,CuratorHelper.TOPIC_PATH));
         		client.create().withMode(CreateMode.PERSISTENT).forPath(CuratorHelper.TOPIC_PATH, new byte[0]);
-        	} catch (KeeperException.NodeExistsException e) {
-        		System.out.println("/topics znode already exists");
         	}
-
         	// Create built-in entities
         	createBuiltinTopics();
 
@@ -166,8 +162,7 @@ public class EdgeBroker {
     	logger.debug(String.format("EB:%s will create a DomainRoute:%s between local domain id:%d and wan domain id:%d\n",
     			ebAddress,domainRouteName,lanDomainId,WAN_DOMAIN_ID));
     	
-    	rs.sendRequest(CommandKind.RTI_ROUTING_SERVICE_COMMAND_CREATE,
-    			"str://\"<domain_route name=\"" + domainRouteName + "\">" +
+    	rs.createDomainRoute("str://\"<domain_route name=\"" + domainRouteName + "\">" +
                          "<entity_monitoring>" +
                          "<historical_statistics><up_time>true</up_time></historical_statistics>" +
                          "</entity_monitoring>" +
