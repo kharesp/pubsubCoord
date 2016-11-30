@@ -110,13 +110,14 @@ public class BuiltinPublisherListener extends DataReaderAdapter {
         	 
         	 //Update the current publisher count for topic t at ZK path /topics/t/pub/ebLocator
         	 if (topic_publisherCount_map.get(topic)==1){
-        		 create_EB_znode(topic,publication_builtin_topic_data.type_name);
+        		 create_EB_znode(topic,publication_builtin_topic_data);
         	 }
 
         	 //Create topic path for topic t if it does not already exist
         	 if (topic_publisherCount_map.get(topic)==1){
         		 logger.debug(String.format("Creating topic path for topic:%s\n",topic));
-        		 create_topic_path(topic,publication_builtin_topic_data.type_name);
+        		 create_topic_path(publication_builtin_topic_data.topic_name,
+        				 publication_builtin_topic_data.type_name);
         	 }
         	 
         	 //Install listener for RB assignment for topic t
@@ -186,7 +187,8 @@ public class BuiltinPublisherListener extends DataReaderAdapter {
    	 		
    	 	}
 	}
-	private void create_EB_znode(String topic,String type_name){
+	private void create_EB_znode(String topic,
+			PublicationBuiltinTopicData publication_builtin_data){
 		String parent_path= (CuratorHelper.TOPIC_PATH+"/"+topic+"/pub");
 		String znode_name=ebAddress;
 		String path=ZKPaths.makePath(parent_path, znode_name);
@@ -194,7 +196,7 @@ public class BuiltinPublisherListener extends DataReaderAdapter {
 			client.create().
 				creatingParentsIfNeeded().
 				withMode(CreateMode.PERSISTENT).
-				forPath(path, type_name.getBytes());
+				forPath(path, CuratorHelper.serialize(publication_builtin_data));
 		} catch (Exception e) {
 			logger.error(e.getMessage(),e);
 		}

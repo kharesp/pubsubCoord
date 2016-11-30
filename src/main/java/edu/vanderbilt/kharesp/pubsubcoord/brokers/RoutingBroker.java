@@ -3,6 +3,10 @@ package edu.vanderbilt.kharesp.pubsubcoord.brokers;
 import java.net.*;
 import java.util.*;
 import org.apache.zookeeper.CreateMode;
+
+import com.rti.dds.publication.builtin.PublicationBuiltinTopicData;
+import com.rti.dds.subscription.builtin.SubscriptionBuiltinTopicData;
+
 import org.apache.curator.framework.CuratorFramework;
 import org.apache.curator.framework.CuratorFrameworkFactory;
 import org.apache.curator.framework.recipes.cache.*;
@@ -182,7 +186,8 @@ public class RoutingBroker {
                     case CHILD_ADDED: {
                     	String eb_path=event.getData().getPath();
                     	String topic= eb_path.split("/")[2];
-                    	String type_name=new String(event.getData().getData());
+                    	PublicationBuiltinTopicData publication_builtin_data=
+                    			(PublicationBuiltinTopicData)CuratorHelper.deserialize(event.getData().getData());
                     	String eb_address= eb_path.split("/")[4];
                     	String eb_locator="tcpv4_wan://"+eb_address+":"+EB_P2_BIND_PORT;
 
@@ -211,7 +216,8 @@ public class RoutingBroker {
                             	if(!topicRoutesList.contains(topic)){
                             		logger.debug(String.format("Both publishers and subscribers for topic:%s exist,"
                             				+ " creating TopicRoute for topic:%s\n",topic,topic));
-                            		createTopicRoute(topic,type_name);
+                            		createTopicRoute(publication_builtin_data.topic_name,
+                            				publication_builtin_data.type_name);
                             		topicRoutesList.add(topic);
                             	}
                             }
@@ -256,7 +262,8 @@ public class RoutingBroker {
                     case CHILD_ADDED: {
                     	String eb_path=event.getData().getPath();
                     	String topic= eb_path.split("/")[2];
-                    	String type_name=new String(event.getData().getData());
+                    	SubscriptionBuiltinTopicData subscription_builtin_data=
+                    			(SubscriptionBuiltinTopicData)(CuratorHelper.deserialize(event.getData().getData()));
                     	String eb_address= eb_path.split("/")[4];
                     	String eb_locator="tcpv4_wan://"+eb_address+":"+EB_P2_BIND_PORT;
 
@@ -285,7 +292,8 @@ public class RoutingBroker {
                             	if(!topicRoutesList.contains(topic)){
                             		logger.debug(String.format("Both publishers and subscribers for topic:%s exist,"
                             				+ " creating TopicRoute for topic:%s\n",topic,topic));
-                            		createTopicRoute(topic,type_name);
+                            		createTopicRoute(subscription_builtin_data.topic_name,
+                            				subscription_builtin_data.type_name);
                             		topicRoutesList.add(topic);
                             	}
                             }

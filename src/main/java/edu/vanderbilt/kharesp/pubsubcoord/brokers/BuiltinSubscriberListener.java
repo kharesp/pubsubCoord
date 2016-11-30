@@ -108,13 +108,14 @@ public class BuiltinSubscriberListener extends DataReaderAdapter {
         			 topic,topic_subscriberCount_map.get(topic)));
         
         	 if(topic_subscriberCount_map.get(topic)==1){
-        		 create_EB_znode(topic,subscription_builtin_topic_data.type_name);
+        		 create_EB_znode(topic,subscription_builtin_topic_data);
         	 }
 
         	 //Create topic path for topic t if it does not already exist
         	 if (topic_subscriberCount_map.get(topic)==1){
         		 logger.debug(String.format("Creating topic path for topic:%s\n",topic));
-        		 create_topic_path(topic,subscription_builtin_topic_data.type_name);
+        		 create_topic_path(subscription_builtin_topic_data.topic_name,
+        				 subscription_builtin_topic_data.type_name);
         	 }
         	 
         	 //Install listener for RB assignment for topic t
@@ -187,7 +188,7 @@ public class BuiltinSubscriberListener extends DataReaderAdapter {
    	 		
    	 	}
 	}
-	private void create_EB_znode(String topic, String type_name){
+	private void create_EB_znode(String topic, SubscriptionBuiltinTopicData subscription_builtin_data){
 		String parent_path= (CuratorHelper.TOPIC_PATH+"/"+topic+"/sub");
 		String znode_name= ebAddress;
 		String path=ZKPaths.makePath(parent_path, znode_name);
@@ -195,7 +196,7 @@ public class BuiltinSubscriberListener extends DataReaderAdapter {
 			client.create().
 				creatingParentsIfNeeded().
 				withMode(CreateMode.PERSISTENT).
-				forPath(path, type_name.getBytes());
+				forPath(path, CuratorHelper.serialize(subscription_builtin_data ));
 		} catch (Exception e) {
 			logger.error(e.getMessage(),e);
 		}
