@@ -28,10 +28,13 @@ public class BuiltinSubscriberListener extends DataReaderAdapter {
     private static final String RB_P2_BIND_PORT = "8501";
     
     //This local domain's DomainRouteName's Prefix
-    private static final String DOMAIN_ROUTE_NAME_PREFIX = "EdgeBrokerDomainRoute";
+    private static final String LOCAL_DOMAIN_ROUTE_NAME_PREFIX = "LocalEdgeBrokerDomainRoute";
+    private static final String SUB_DOMAIN_ROUTE_NAME_PREFIX = "SubEdgeBrokerDomainRoute";
 
 	private String ebAddress;
-	private String domainRouteName;
+	@SuppressWarnings("unused")
+	private String localDomainRouteName;
+	private String subDomainRouteName;
 	private Logger logger;
 	private CuratorFramework client;
 	private RoutingServiceAdministrator rs;
@@ -50,7 +53,8 @@ public class BuiltinSubscriberListener extends DataReaderAdapter {
 
 	public BuiltinSubscriberListener(String ebAddress,CuratorFramework client, RoutingServiceAdministrator rs){
 		this.ebAddress=ebAddress;
-		domainRouteName=DOMAIN_ROUTE_NAME_PREFIX+"@"+ebAddress;
+		localDomainRouteName=LOCAL_DOMAIN_ROUTE_NAME_PREFIX+"@"+ebAddress;
+		subDomainRouteName=SUB_DOMAIN_ROUTE_NAME_PREFIX+"@"+ebAddress;
 		logger=LogManager.getLogger(this.getClass().getSimpleName());
 		this.rs=rs;
 		this.client=client;
@@ -109,28 +113,28 @@ public class BuiltinSubscriberListener extends DataReaderAdapter {
         
         	 if(topic_subscriberCount_map.get(topic)==1){
         		 create_EB_znode(topic,subscription_builtin_topic_data);
-        	 }
 
-        	 //Create topic path for topic t if it does not already exist
-        	 if (topic_subscriberCount_map.get(topic)==1){
-        		 logger.debug(String.format("Creating topic path for topic:%s\n",topic));
-        		 create_topic_path(subscription_builtin_topic_data.topic_name,
+        		 //Create topic session for topic t if it does not already exist
+        		 logger.debug(String.format("Creating topic session for topic:%s\n",topic));
+        		 create_topic_session(subscription_builtin_topic_data.topic_name,
         				 subscription_builtin_topic_data.type_name);
+
+        		 //Install listener for RB assignment for topic t
+        		 install_topic_to_rb_assignment_listener(topic);
         	 }
-        	 
-        	 //Install listener for RB assignment for topic t
-        	 install_topic_to_rb_assignment_listener(topic);
         	
          	} else {
          		logger.debug("This subscriber was created by RS\n");
          	}
 	}
-	
-	
 
 	private void delete_subscriber(){
 		//retrieve the topic name for which this subscriber was removed
-		String topic=instanceHandle_topic_map.get(info.instance_handle.toString());
+		String topic=instanceHandle_topic_map.getOrDefault(info.instance_handle.toString(),null);
+		if (topic==null){
+			logger.debug("This subscriber was created by RS\n");
+			return;
+		}
 		//remove the instance handle 
 		instanceHandle_topic_map.remove(info.instance_handle.toString());
 
@@ -148,47 +152,45 @@ public class BuiltinSubscriberListener extends DataReaderAdapter {
 		
 		//delete EB for this domain under /topics/t/sub when number of subscribers for t is 0
 		if (updated_count==0){
-   	 		delete_EB_znode(topic);
-		}
-   	 	
-   	 	//Remove topic path if subscriber count==0
-   	 	if (updated_count==0){
-   	 		logger.debug(String.format("Removing topic route for %s as subscriber count is 0\n", topic));
-   	 		rs.deleteTopicRoute(String.format("%s::%sPublicationSession::%sPublicationRoute",
-   	 				domainRouteName,topic,topic));
-   	 	}
-   	 	
-   	 	if(updated_count==0){
-   	 		//Remove listener for RB assignment if subscriber count=0
-   	 		NodeCache topicCache=topic_topicCache_map.remove(topic);
-   	 		String RB_address= new String(topicCache.getCurrentData().getData());
-   	 		String topic_path= topicCache.getCurrentData().getPath();
-   	 		logger.debug(String.format("Removing listener for RB assignment for topic node:%s as subscriber count is 0\n",
-   	 				topic_path));
-   	 		topicCache.getListenable().clear();
-   	 		try {
+			SubscriptionBuiltinTopicData subscription_builtin_topic_data=delete_EB_znode(topic);
+
+			//Remove topic path if subscriber count==0
+			logger.debug(String.format("Removing topic session for %s as subscriber count is 0\n", topic));
+			rs.deleteTopicSession(String.format("%s::%sPublicationSession",
+					subDomainRouteName,subscription_builtin_topic_data.topic_name));
+
+			//Remove listener for RB assignment if subscriber count=0
+			NodeCache topicCache=topic_topicCache_map.remove(topic);
+			String RB_address= new String(topicCache.getCurrentData().getData());
+			String topic_path= topicCache.getCurrentData().getPath();
+			logger.debug(String.format("Removing listener for RB assignment for topic node:%s as subscriber count is 0\n",
+					topic_path));
+			topicCache.getListenable().clear();
+			try {
 				topicCache.close();
 			} catch (IOException e) {
 				logger.error(e.getMessage(),e);
 			}
-   	 		
-   	 		//If we are not interacting with this RB for any other topic, then remove RB as peer
-   	 		HashSet<String> topics= rb_topics_map.getOrDefault(RB_address,null);
-   	 		if (topics!=null){
-   	 			topics.remove(topic_path);
-   	 			/*if(topics.size()==0){
-   	 				//remove RB as peer 
+
+			//If we are not interacting with this RB for any other topic, then remove RB as peer
+			HashSet<String> topics= rb_topics_map.getOrDefault(RB_address,null);
+			if (topics!=null){
+				topics.remove(topic_path);
+				if(topics.size()==0){
+   	 				/*remove RB as peer 
    	 				logger.debug(String.format("Local domain is not connected to RB:%s for any topics.\n"
    	 						+ "Hence, removing RB:%s as peer.\n",RB_address,RB_address));
    	 				String rbLocator = "tcpv4_wan://" + RB_address + ":" + RB_P2_BIND_PORT;
    	 				rs.removePeer(domainRouteName,rbLocator,false);
-   	 				rb_topics_map.remove(RB_address);
-   	 			}*/
-   	 		}
-   	 		
-   	 	}
+   	 				rb_topics_map.remove(RB_address);*/
+   	 			}
+			}
+		}
 	}
 	private void create_EB_znode(String topic, SubscriptionBuiltinTopicData subscription_builtin_data){
+		//Ensure /topics/t/pub and /topics/t/sub paths exist
+		ensure_topic_path_exists(topic);
+		
 		String parent_path= (CuratorHelper.TOPIC_PATH+"/"+topic+"/sub");
 		String znode_name= ebAddress;
 		String path=ZKPaths.makePath(parent_path, znode_name);
@@ -203,11 +205,16 @@ public class BuiltinSubscriberListener extends DataReaderAdapter {
 		logger.debug(String.format("Created EB znode for EB:%s for topic path:%s\n",
 				ebAddress,parent_path));
 	}
-	private void delete_EB_znode(String topic){
+	
+	private  SubscriptionBuiltinTopicData delete_EB_znode(String topic){
+		SubscriptionBuiltinTopicData subscription_builtin_topic_data=null;
 		String parent_path= (CuratorHelper.TOPIC_PATH+"/"+topic+"/sub");
 		String znode_name= ebAddress;
 		String path=ZKPaths.makePath(parent_path, znode_name);
 		try {
+			subscription_builtin_topic_data=
+					(SubscriptionBuiltinTopicData)CuratorHelper.
+						deserialize(client.getData().forPath(path));
 			client.delete().forPath(path);
 		} catch (Exception e) {
 			logger.error(e.getMessage(),e);
@@ -215,6 +222,32 @@ public class BuiltinSubscriberListener extends DataReaderAdapter {
 		logger.debug(String.format("Deleted EB:%s under topic path:%s as"
 				+ " number of subscribers for topic:%s is 0\n",
 				ebAddress,parent_path,topic));
+		return subscription_builtin_topic_data;
+	}
+	
+	private void ensure_topic_path_exists(String topic){
+		String topic_subscribers_path=CuratorHelper.TOPIC_PATH+"/"+topic+"/sub";
+		String topic_publishers_path=CuratorHelper.TOPIC_PATH+"/"+topic+"/pub";
+		try {
+			if(client.checkExists().forPath(topic_subscribers_path)==null)
+			{
+				client.create().
+					creatingParentsIfNeeded().
+					forPath(topic_subscribers_path);
+				logger.debug(String.format("EB:%s created topic path for subscribers:%s\n",
+						ebAddress,topic_subscribers_path));
+			}
+			if(client.checkExists().forPath(topic_publishers_path)==null)
+			{
+				client.create().
+					creatingParentsIfNeeded().
+					forPath(topic_publishers_path);
+				logger.debug(String.format("EB:%s created topic path for publishers:%s\n",
+						ebAddress,topic_publishers_path));
+			}
+		} catch (Exception e1) {
+			logger.error(e1.getMessage(),e1);
+		}	
 	}
 
 	
@@ -241,10 +274,12 @@ public class BuiltinSubscriberListener extends DataReaderAdapter {
 							 rb_topics_map.get(rb_address).add(topic_path);
 							 String rbLocator = "tcpv4_wan://" + rb_address + ":" + RB_P2_BIND_PORT;
 							 logger.debug(String.format("Adding RB:%s as peer\n",rbLocator));
-							 rs.addPeer(domainRouteName,rbLocator, false);
+							 rs.addPeer(subDomainRouteName,rbLocator, false);
 						 }else{
 							 HashSet<String> topics=rb_topics_map.get(rb_address);
 							 topics.add(topic_path);
+							 logger.debug(String.format("RB:%s for topic:%s already exists as peer\n",
+									 rb_address,topic_path));
 						 }
 					 }
 				}
@@ -257,9 +292,8 @@ public class BuiltinSubscriberListener extends DataReaderAdapter {
 		}
 	}
 	
-	private void create_topic_path(String topic_name,String type_name){
-		rs.createTopicRoute(domainRouteName, 
-				 "str://\"<session name=\"" + topic_name + "PublicationSession\">" +
+	private void create_topic_session(String topic_name,String type_name){
+		String command_string="str://\"<session name=\"" + topic_name + "PublicationSession\">" +
                          "<topic_route name=\"" + topic_name + "PublicationRoute\">" +
                          "<route_types>true</route_types>" +
                          "<publish_with_original_info>true</publish_with_original_info>" +
@@ -305,7 +339,9 @@ public class BuiltinSubscriberListener extends DataReaderAdapter {
                          "</datawriter_qos>" +
                          "</output>" +
                          "</topic_route>" +
-                         "</session>\"");
+                         "</session>\"";
+		
+		rs.createTopicSession(subDomainRouteName,command_string);
 	}
 
 }

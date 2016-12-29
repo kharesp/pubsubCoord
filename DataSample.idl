@@ -1,0 +1,5 @@
+struct DataSample {
+	long sample_id;
+	long long ts_milisec;
+	long payload[13];
+};
