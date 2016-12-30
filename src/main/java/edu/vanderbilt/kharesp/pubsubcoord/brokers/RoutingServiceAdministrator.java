@@ -70,6 +70,7 @@ public class RoutingServiceAdministrator {
 	public void removePeer(String domainRouteName,String peerLocator,boolean isFirstParticipant){
 		
 	}
+	
 	public void addPeer(String domainRouteName,String peerLocator,boolean isFirstParticipant) {
 		try {
 			logger.debug(String.format("Adding Peer:%s for domainRouteName:%s at firstParticipant:%s\n",
@@ -126,8 +127,8 @@ public class RoutingServiceAdministrator {
 		}
 	}
 
-	public void createTopicRoute(String domainRouteName, String commandString) {
-		logger.debug(String.format("Creating Topic Route\n"));
+	public void createTopicSession(String domainRouteName, String commandString) {
+		logger.debug(String.format("Creating Topic Session\n"));
 		try {
 			WriteSample<CommandRequest> request = requester.createRequestSample();
 			request.getData().id.host = hostAddress.hashCode();
@@ -151,8 +152,9 @@ public class RoutingServiceAdministrator {
 			throw e;
 		}
 	}
-	public void deleteTopicRoute(String entityName ){
-		logger.debug(String.format("Deleting Topic route:%s\n", entityName));
+	
+	public void deleteTopicSession(String entityName ){
+		logger.debug(String.format("Deleting Topic Session:%s\n", entityName));
 		try{
 			WriteSample<CommandRequest> request = requester.createRequestSample();
 			request.getData().id.host = hostAddress.hashCode();
@@ -172,14 +174,6 @@ public class RoutingServiceAdministrator {
 		}catch(Exception e){
 			logger.error(e.getMessage(),e);
 			throw e;
-		}
-	}
-	public static void main(String args[]){
-		try {
-			RoutingServiceAdministrator rs= new RoutingServiceAdministrator("127.0.1.1");
-			rs.deleteTopicRoute("EdgeBrokerDomainRoute@127.0.1.1::Hello,World::Hello,World");
-		} catch (Exception e) {
-			e.printStackTrace();
 		}
 	}
 

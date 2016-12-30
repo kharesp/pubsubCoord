@@ -99,7 +99,7 @@ public class RoutingBroker {
         client.start();
         
         try{
-        	// Ensure ZK paths /routingBroker and /leader exist
+        	// Ensure ZK paths /routingBroker /topics and /leader exists
         	if(client.checkExists().forPath(CuratorHelper.ROUTING_BROKER_PATH) == null){
         		logger.debug(String.format("zk path:%s does not exist. RB:%s will create zk path:%s\n",
         				CuratorHelper.ROUTING_BROKER_PATH,rbAddress,CuratorHelper.ROUTING_BROKER_PATH));
@@ -113,6 +113,13 @@ public class RoutingBroker {
         		client.create().
         			withMode(CreateMode.PERSISTENT).
         			forPath(CuratorHelper.LEADER_PATH, new byte[0]);
+        	}
+        	if(client.checkExists().forPath(CuratorHelper.TOPIC_PATH)== null){
+        		logger.debug(String.format("zk path:%s does not exist. RB:%s will create zk path:%s\n",
+        				CuratorHelper.TOPIC_PATH,rbAddress,CuratorHelper.TOPIC_PATH));
+        		client.create().
+        			withMode(CreateMode.PERSISTENT).
+        			forPath(CuratorHelper.TOPIC_PATH, new byte[0]);
         	}
         	// Create a NodeCache for this routing broker
             rbNodeCache = new NodeCache(client, CuratorHelper.ROUTING_BROKER_PATH + "/" + rbAddress);
@@ -141,6 +148,7 @@ public class RoutingBroker {
         }
 
     }
+    
     private void addRbNodeListener(final NodeCache cache) {
         cache.getListenable().addListener(new NodeCacheListener() {
             @Override
@@ -177,6 +185,7 @@ public class RoutingBroker {
             }
         });
     }
+    
     private void addPubChildrenListener(PathChildrenCache cache) {
         cache.getListenable().addListener(new PathChildrenCacheListener() {
             @Override
@@ -215,8 +224,8 @@ public class RoutingBroker {
                             	//Create topic route only if it does not already exist
                             	if(!topicRoutesList.contains(topic)){
                             		logger.debug(String.format("Both publishers and subscribers for topic:%s exist,"
-                            				+ " creating TopicRoute for topic:%s\n",topic,topic));
-                            		createTopicRoute(publication_builtin_data.topic_name,
+                            				+ " creating Topic Session for topic:%s\n",topic,topic));
+                            		createTopicSession(publication_builtin_data.topic_name,
                             				publication_builtin_data.type_name);
                             		topicRoutesList.add(topic);
                             	}
@@ -228,6 +237,9 @@ public class RoutingBroker {
                     	String eb_path=event.getData().getPath();
                     	String topic= eb_path.split("/")[2];
                     	logger.debug(String.format("EB:%s was removed\n", eb_path));
+                    	
+                    	PublicationBuiltinTopicData publication_builtin_topic_data= 
+                    			(PublicationBuiltinTopicData) CuratorHelper.deserialize(event.getData().getData());
 
                     	PathChildrenCache topic_pub_children_cache= topic_publishersChildrenCache_map.get(topic);
                     	topic_pub_children_cache.rebuild();
@@ -238,10 +250,10 @@ public class RoutingBroker {
                     		if(topicRoutesList.contains(topic)){
                     			topicRoutesList.remove(topic);
                     			logger.debug(String.format("Publishing domains for topic:%s do not exist.\n"
-                    					+ "Removing topic route:%s\n",topic,String.format("%s::%sTopicSession::%sTopicRoute",
-                    							domainRouteName,topic,topic)));
-                    			rs.deleteTopicRoute(String.format("%s::%sTopicSession::%sTopicRoute",
-                    					domainRouteName,topic,topic) );
+                    					+ "Removing topic session:%s\n",topic,String.format("%s::%sTopicSession",
+                    							domainRouteName,publication_builtin_topic_data.topic_name)));
+                    			rs.deleteTopicSession(String.format("%s::%sTopicSession",
+                    					domainRouteName,publication_builtin_topic_data.topic_name) );
                     		}
                     	}
                     	
@@ -253,6 +265,7 @@ public class RoutingBroker {
             }
         });
     }
+    
     private void addSubChildrenListener(PathChildrenCache cache) {
         cache.getListenable().addListener(new PathChildrenCacheListener() {
             @Override
@@ -291,8 +304,8 @@ public class RoutingBroker {
                             	//Create topic route only if it does not already exist
                             	if(!topicRoutesList.contains(topic)){
                             		logger.debug(String.format("Both publishers and subscribers for topic:%s exist,"
-                            				+ " creating TopicRoute for topic:%s\n",topic,topic));
-                            		createTopicRoute(subscription_builtin_data.topic_name,
+                            				+ " creating Topic Session for topic:%s\n",topic,topic));
+                            		createTopicSession(subscription_builtin_data.topic_name,
                             				subscription_builtin_data.type_name);
                             		topicRoutesList.add(topic);
                             	}
@@ -305,6 +318,9 @@ public class RoutingBroker {
                     	String topic= eb_path.split("/")[2];
 
                     	logger.debug(String.format("EB:%s was removed\n", eb_path));
+                    	
+                    	SubscriptionBuiltinTopicData subscription_builtin_topic_data=
+                    			(SubscriptionBuiltinTopicData) CuratorHelper.deserialize(event.getData().getData());
 
                     	PathChildrenCache topic_sub_children_cache= topic_subChildrenCache_map.get(topic);
                     	topic_sub_children_cache.rebuild();
@@ -315,10 +331,10 @@ public class RoutingBroker {
                     		if(topicRoutesList.contains(topic)){
                     			topicRoutesList.remove(topic);
                     			logger.debug(String.format("Subscribing domains for topic:%s do not exist.\n"
-                    					+ "Removing topic route:%s\n",topic,String.format("%s::%sTopicSession::%sTopicRoute",
-                    							domainRouteName,topic,topic)));
-                    			rs.deleteTopicRoute(String.format("%s::%sTopicSession::%sTopicRoute",
-                    					domainRouteName,topic,topic) );
+                    					+ "Removing topic session:%s\n",topic,String.format("%s::%sTopicSession",
+                    							domainRouteName,subscription_builtin_topic_data.topic_name)));
+                    			rs.deleteTopicSession(String.format("%s::%sTopicSession",
+                    					domainRouteName,subscription_builtin_topic_data.topic_name) );
                     		}
                     	}
                         break;
@@ -329,6 +345,7 @@ public class RoutingBroker {
             }
         });
     }
+    
     private void createDomainRoute(){
     	logger.debug(String.format("Creating domain route:%s for interconnecting domains between:%s and %s",
     			domainRouteName,RB_P1_BIND_PORT,RB_P2_BIND_PORT));
@@ -375,10 +392,10 @@ public class RoutingBroker {
                          "</domain_route>\"");
     }
     
-    private void createTopicRoute(String topic_name,String type_name) {
-    	logger.debug(String.format("Creating TopicRoute for topic:%s\n",topic_name ));
+    private void createTopicSession(String topic_name,String type_name) {
+    	logger.debug(String.format("Creating Topic Session for topic:%s\n",topic_name ));
 
-    	rs.createTopicRoute(domainRouteName,
+    	rs.createTopicSession(domainRouteName,
     			  "str://\"<session name=\"" + topic_name + "TopicSession\">" +
                           "<topic_route name=\"" + topic_name + "TopicRoute\">" +
                           "<route_types>true</route_types>" +

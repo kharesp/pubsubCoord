@@ -1,0 +1,415 @@
+/* $Id: RoutingServiceMonitoring.idl,v 1.17 2015/01/14 17:03:52 dluengo Exp $
+
+(c) Copyright, Real-Time Innovations, $Date: 2015/01/14 17:03:52 $.
+All rights reserved.
+No duplications, whole or partial, manual or electronic, may be made
+without express written permission.  Any such copies, or
+revisions thereof, must display this notice unaltered.
+This code contains trade secrets of Real-Time Innovations, Inc.
+
+modification history
+------------ -------
+5.10,01oct13,acr ROUTING-195: Type extensibility
+1.0c,25nov09,acr Added file documentation for doxygen
+1.0a,28aug09,acr Routing service key is now the name and not the host and app ids
+1.0a,21aug09,fcs Convert to UNIX format
+1.0a,11jul09,fcs Added XmlUrl
+1.0a,25jun09,acr Added announcement command and response
+1.0a,22jun09,fcs Modified
+1.0a,11jun09,fcs Modified
+1.0a,12may09,acr Created
+==============================================================================*/
+
+/*e \file
+  @brief IDL types used for remote monitoring
+*/
+
+module RTI {
+module RoutingService {
+
+    module Monitoring {
+        
+        /* Topic names */
+        const string ROUTE_STATUS_SET_TOPIC_NAME = 
+            "rti/routing_service/monitoring/route_status_set";
+        const string AUTO_ROUTE_STATUS_SET_TOPIC_NAME = 
+            "rti/routing_service/monitoring/auto_route_status_set";
+        const string SESSION_STATUS_SET_TOPIC_NAME = 
+            "rti/routing_service/monitoring/session_status_set";
+        const string DOMAIN_ROUTE_STATUS_SET_TOPIC_NAME = 
+             "rti/routing_service/monitoring/domain_route_status_set";
+        const string ROUTING_SERVICE_STATUS_SET_TOPIC_NAME = 
+            "rti/routing_service/monitoring/routing_service_status_set";
+        
+        const string ROUTE_DATA_TOPIC_NAME = 
+            "rti/routing_service/monitoring/route_data";
+        const string AUTO_ROUTE_DATA_TOPIC_NAME = 
+            "rti/routing_service/monitoring/auto_route_data";
+        const string SESSION_DATA_TOPIC_NAME = 
+            "rti/routing_service/monitoring/session_data";
+        const string DOMAIN_ROUTE_DATA_TOPIC_NAME = 
+             "rti/routing_service/monitoring/domain_route_data";
+        const string ROUTING_SERVICE_DATA_TOPIC_NAME = 
+            "rti/routing_service/monitoring/routing_service_data";      
+
+        /* Maximum length of an entity name */
+        const long ENTITY_NAME_MAX_LENGTH = 64;
+        const long PROPERTY_NAME_MAX_LENGTH = 64;
+        const long PROPERTY_VALUE_MAX_LENGTH = 1024;
+        const long TOPIC_NAME_MAX_LENGTH = 255;
+        const long TYPE_NAME_MAX_LENGTH = 255;
+        const long EXPRESSION_MAX_LENGTH = 1024;
+        const long MAX_TRANSFORMATIONS = 4;
+        const long MAX_PROPERTIES = 10;
+        const long MAX_HISTORICAL_METRICS = 5;
+        
+        typedef string<ENTITY_NAME_MAX_LENGTH> EntityName;
+
+        struct Property {
+            string<PROPERTY_NAME_MAX_LENGTH> name;
+            string<PROPERTY_VALUE_MAX_LENGTH> value;
+        }; //@top-level false
+           //@Extensibility FINAL_EXTENSIBILITY
+
+        enum AdapterKind {
+            RTI_ROUTING_SERVICE_GENERIC_ADAPTER_KIND,
+            RTI_ROUTING_SERVICE_DDS_ADAPTER_KIND
+        };
+
+        struct BuiltinTopicKey_t {
+            unsigned long value[4];
+        }; //@top-level false
+           //@Extensibility FINAL_EXTENSIBILITY
+
+        enum RouteCreationMode {
+            RTI_ROUTING_SERVICE_ROUTE_CREATION_MODE_IMMEDIATE,
+            RTI_ROUTING_SERVICE_ROUTE_CREATION_MODE_ON_DOMAIN_MATCH,
+            RTI_ROUTING_SERVICE_ROUTE_CREATION_MODE_ON_ROUTE_MATCH,
+            RTI_ROUTING_SERVICE_ROUTE_CREATION_MODE_ON_DOMAIN_OR_ROUTE_MATCH,
+            RTI_ROUTING_SERVICE_ROUTE_CREATION_MODE_ON_DOMAIN_AND_ROUTE_MATCH
+        };
+
+
+        enum DDSEntityState {
+            RTI_ROUTING_SERVICE_CREATED_AND_ENABLED,
+            RTI_ROUTING_SERVICE_NOT_CREATED
+        };
+
+        /******************************** Data *******************************/
+
+        /***** Routing Service *****/
+
+        struct RoutingServiceAdministrationData {
+            string<EXPRESSION_MAX_LENGTH> save_path;
+            boolean autosave_on_update;
+        }; //@top-level false
+           //@Extensibility EXTENSIBLE_EXTENSIBILITY
+
+        struct RoutingServiceData {
+            EntityName name; //@key
+            EntityName group_name;
+            EntityName host_name;
+            long host_id;
+            unsigned long app_id;
+
+            RoutingServiceAdministrationData administration;
+        }; //@top-level true
+           //@Extensibility MUTABLE_EXTENSIBILITY
+
+        /***** Domain Route *****/
+
+        struct DomainRouteParticipantData {                
+            long domain_id;
+            BuiltinTopicKey_t participant_key;
+        }; //@top-level false
+           //@Extensibility EXTENSIBLE_EXTENSIBILITY
+
+        struct DomainRouteAdapterConnectionData {
+            EntityName plugin_name;
+            sequence<Property, MAX_PROPERTIES> property;
+        }; //@top-level false
+           //@Extensibility EXTENSIBLE_EXTENSIBILITY
+
+        union DomainRouteConnectionData switch(AdapterKind) {
+            case RTI_ROUTING_SERVICE_DDS_ADAPTER_KIND:
+                DomainRouteParticipantData dds;
+            case RTI_ROUTING_SERVICE_GENERIC_ADAPTER_KIND:
+                DomainRouteAdapterConnectionData generic;
+        }; //@top-level false
+           //@Extensibility MUTABLE_EXTENSIBILITY
+
+        struct DomainRouteData {
+            EntityName routing_service_name; //@key
+            EntityName name; //@key 
+
+            DomainRouteConnectionData connection_1;
+            DomainRouteConnectionData connection_2;
+        }; //@top-level true
+           //@Extensibility MUTABLE_EXTENSIBILITY
+
+        /***** Session *****/
+
+        struct SessionData {
+            EntityName routing_service_name;//@key
+            EntityName domain_route_name; //@key
+            EntityName name; //@key
+    
+            long enabled_route_count;
+
+            sequence<Property, MAX_PROPERTIES> property;
+        }; //@top-level true
+           //@Extensibility MUTABLE_EXTENSIBILITY
+
+        /***** Route *****/
+
+        struct TransformationData {
+            EntityName plugin_name;
+            sequence<Property, MAX_PROPERTIES> property;
+        }; //@top-level false
+           //@Extensibility EXTENSIBLE_EXTENSIBILITY
+
+
+        struct RouteAdapterData {
+            sequence<Property, MAX_PROPERTIES> property;
+        }; //@top-level false
+           //@Extensibility EXTENSIBLE_EXTENSIBILITY
+
+        struct RouteDdsInputData {                
+            long domain_id;
+            BuiltinTopicKey_t datareader_key;
+            string<EXPRESSION_MAX_LENGTH> content_filter_expression;
+        }; //@top-level false
+           //@Extensibility EXTENSIBLE_EXTENSIBILITY
+
+        union RouteInputAdapterData switch(AdapterKind) {
+            case RTI_ROUTING_SERVICE_DDS_ADAPTER_KIND:
+                RouteDdsInputData dds;
+            case RTI_ROUTING_SERVICE_GENERIC_ADAPTER_KIND:
+                RouteAdapterData generic;
+        }; //@top-level false
+           //@Extensibility MUTABLE_EXTENSIBILITY
+
+        struct RouteDdsOutputData {                
+            long domain_id;
+            BuiltinTopicKey_t datawriter_key;
+        }; //@top-level false
+           //@Extensibility EXTENSIBLE_EXTENSIBILITY
+
+        union RouteOutputAdapterData switch(AdapterKind) {
+            case RTI_ROUTING_SERVICE_DDS_ADAPTER_KIND:
+                RouteDdsOutputData dds;
+            case RTI_ROUTING_SERVICE_GENERIC_ADAPTER_KIND:
+                RouteAdapterData generic;
+        }; //@top-level false
+           //@Extensibility MUTABLE_EXTENSIBILITY
+
+        struct RouteInputData {
+            string<TOPIC_NAME_MAX_LENGTH> stream_name;
+            string<TYPE_NAME_MAX_LENGTH> registered_type_name;
+            long connection;
+            RouteCreationMode creation_mode;
+            DDSEntityState state;
+            RouteInputAdapterData adapter_data;
+        }; //@top-level false
+           //@Extensibility MUTABLE_EXTENSIBILITY
+
+        struct RouteOutputData {
+            string<TOPIC_NAME_MAX_LENGTH> stream_name;
+            string<TYPE_NAME_MAX_LENGTH> registered_type_name;
+            RouteCreationMode creation_mode;
+            DDSEntityState state;
+            RouteOutputAdapterData adapter_data;
+        }; //@top-level false
+           //@Extensibility MUTABLE_EXTENSIBILITY
+
+        struct RouteData {
+            EntityName routing_service_name;//@key
+            EntityName domain_route_name; //@key
+            EntityName session_name; //@key 
+            EntityName name; //@key
+    
+            EntityName auto_route_name;
+
+            boolean propagate_dispose;
+            boolean propagate_unregister;
+            boolean publish_with_original_info;
+            boolean publish_with_original_timestamp;
+
+            boolean route_types;
+
+            RouteInputData input;
+            RouteOutputData output;
+
+            sequence<TransformationData, MAX_TRANSFORMATIONS> transformations;
+            
+            boolean paused;
+        }; //@top-level true
+           //@Extensibility MUTABLE_EXTENSIBILITY
+
+        /***** Auto Route *****/
+
+        struct AutoRouteAdapterData {
+            sequence<Property, MAX_PROPERTIES> property;
+        }; //@top-level false
+           //@Extensibility EXTENSIBLE_EXTENSIBILITY
+
+        struct AutoRouteDdsInputData {                
+            long domain_id;
+            string<EXPRESSION_MAX_LENGTH> content_filter_expression;
+        }; //@top-level false
+           //@Extensibility EXTENSIBLE_EXTENSIBILITY
+
+        union AutoRouteInputAdapterData switch(AdapterKind) {
+            case RTI_ROUTING_SERVICE_DDS_ADAPTER_KIND:
+                AutoRouteDdsInputData dds;
+            case RTI_ROUTING_SERVICE_GENERIC_ADAPTER_KIND:
+                AutoRouteAdapterData generic;
+        }; //@top-level false
+           //@Extensibility MUTABLE_EXTENSIBILITY
+
+        struct AutoRouteDdsOutputData {                
+            long domain_id;
+        }; //@top-level false
+           //@Extensibility EXTENSIBLE_EXTENSIBILITY
+
+        union AutoRouteOutputAdapterData switch(AdapterKind) {
+            case RTI_ROUTING_SERVICE_DDS_ADAPTER_KIND:
+                AutoRouteDdsOutputData dds;
+            case RTI_ROUTING_SERVICE_GENERIC_ADAPTER_KIND:
+                AutoRouteAdapterData generic;
+        }; //@top-level false
+           //@Extensibility MUTABLE_EXTENSIBILITY
+
+        struct AutoRouteInputData {
+            string<TOPIC_NAME_MAX_LENGTH> allow_stream_name_filter;
+            string<TYPE_NAME_MAX_LENGTH> allow_registered_type_name_filter;
+            string<TOPIC_NAME_MAX_LENGTH> deny_stream_name_filter;
+            string<TYPE_NAME_MAX_LENGTH> deny_registered_type_name_filter;
+            long connection;
+            RouteCreationMode creation_mode;
+            AutoRouteInputAdapterData adapter_data;
+        }; //@top-level false
+           //@Extensibility MUTABLE_EXTENSIBILITY
+
+        struct AutoRouteOutputData {
+            string<TOPIC_NAME_MAX_LENGTH> allow_stream_name_filter;
+            string<TYPE_NAME_MAX_LENGTH> allow_registered_type_name_filter;
+            string<TOPIC_NAME_MAX_LENGTH> deny_stream_name_filter;
+            string<TYPE_NAME_MAX_LENGTH> deny_registered_type_name_filter;
+
+            RouteCreationMode creation_mode;
+            AutoRouteOutputAdapterData adapter_data;
+        }; //@top-level false
+           //@Extensibility MUTABLE_EXTENSIBILITY
+
+        struct AutoRouteData {
+            EntityName routing_service_name; //@key
+            EntityName domain_route_name; //@key
+            EntityName session_name; //@key 
+            EntityName name; //@key 
+
+            boolean propagate_dispose;
+            boolean propagate_unregister;
+            boolean publish_with_original_info;
+            boolean publish_with_original_timestamp;
+   
+            long enabled_route_count;
+
+            AutoRouteInputData input;
+            AutoRouteOutputData output;
+            
+            boolean paused;
+        }; //@top-level true
+           //@Extensibility MUTABLE_EXTENSIBILITY
+
+        /******************************* Status ******************************/
+
+        struct StatisticMetrics {
+            unsigned long long period_ms;
+            long long count;
+            float mean;
+            float minimum;
+            float maximum;
+            float std_dev;
+        }; //@top-level false
+           //@Extensibility FINAL_EXTENSIBILITY
+
+        struct StatisticVariable {
+            StatisticMetrics publication_period_metrics;
+            sequence<StatisticMetrics, MAX_HISTORICAL_METRICS> historical_metrics;
+        }; //@top-level false
+           //@Extensibility EXTENSIBLE_EXTENSIBILITY
+
+        struct RoutingServiceStatusSet {
+            EntityName name; //@key
+    
+            StatisticVariable cpu_usage_percentage;
+            StatisticVariable physical_memory_kb;
+            StatisticVariable total_memory_kb;
+            long uptime;
+
+            StatisticVariable host_cpu_usage_percentage;
+            StatisticVariable host_free_memory_kb;
+            unsigned long host_total_memory_kb;
+            StatisticVariable host_free_swap_memory_kb;
+            unsigned long host_total_swap_memory_kb;
+            long host_uptime;
+        }; //@top-level true
+           //@Extensibility MUTABLE_EXTENSIBILITY
+
+        struct DomainRouteStatusSet {
+            EntityName routing_service_name; //@key
+            EntityName name; //@key
+    
+            StatisticVariable input_samples_per_s;
+            StatisticVariable input_bytes_per_s;
+            StatisticVariable output_samples_per_s;
+            StatisticVariable output_bytes_per_s;
+            StatisticVariable latency_s;
+        }; //@top-level true
+           //@Extensibility MUTABLE_EXTENSIBILITY
+
+        struct SessionStatusSet {
+            EntityName routing_service_name; //@key
+            EntityName domain_route_name; //@key
+            EntityName name; //@key 
+    
+            StatisticVariable input_samples_per_s;
+            StatisticVariable input_bytes_per_s;
+            StatisticVariable output_samples_per_s;
+            StatisticVariable output_bytes_per_s;
+            StatisticVariable latency_s;
+        }; //@top-level true
+           //@Extensibility MUTABLE_EXTENSIBILITY
+
+        struct RouteStatusSet {
+            EntityName routing_service_name; //@key
+            EntityName domain_route_name; //@key
+            EntityName session_name; //@key 
+            EntityName name; //@key
+    
+            StatisticVariable input_samples_per_s;
+            StatisticVariable input_bytes_per_s;
+            StatisticVariable output_samples_per_s;
+            StatisticVariable output_bytes_per_s;
+            StatisticVariable latency_s;
+        }; //@top-level true
+           //@Extensibility MUTABLE_EXTENSIBILITY
+
+        struct AutoRouteStatusSet {
+            EntityName routing_service_name; //@key
+            EntityName domain_route_name; //@key
+            EntityName session_name; //@key 
+            EntityName name; //@key
+    
+            StatisticVariable input_samples_per_s;
+            StatisticVariable input_bytes_per_s;
+            StatisticVariable output_samples_per_s;
+            StatisticVariable output_bytes_per_s;
+            StatisticVariable latency_s;
+        }; //@top-level true
+           //@Extensibility MUTABLE_EXTENSIBILITY
+    };
+};
+};
+

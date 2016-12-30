@@ -28,7 +28,6 @@ public class EdgeBroker {
     private static final String DOMAIN_ROUTE_NAME_PREFIX = "EdgeBrokerDomainRoute";
 
     private String ebAddress;
-    private String ebLocator;
     private String domainRouteName; 
     private String zkConnector;
     private int lanDomainId;
@@ -47,7 +46,6 @@ public class EdgeBroker {
         } catch (java.net.UnknownHostException e) {
             System.out.println("Host address is not known");
         }
-        ebLocator = ebAddress + ":" + EB_P2_BIND_PORT;
 
         // Create Routing Service remote administrator 
         try {
@@ -179,7 +177,7 @@ public class EdgeBroker {
                          "<element><name>dds.transport.TCPv4.tcp1.create_function</name><value>NDDS_Transport_TCPv4_create</value></element>" +
                          "<element><name>dds.transport.TCPv4.tcp1.parent.classid</name><value>NDDS_TRANSPORT_CLASSID_TCPV4_WAN</value></element>" +
                          "<element><name>dds.transport.TCPv4.tcp1.public_address</name><value>" +
-                         ebLocator +
+                         ebAddress + ":" + EB_P2_BIND_PORT + 
                          "</value></element>" +
                          "<element><name>dds.transport.TCPv4.tcp1.server_bind_port</name><value>" +
                          EB_P2_BIND_PORT +

@@ -85,6 +85,7 @@ public class BuiltinPublisherListener extends DataReaderAdapter {
 		}
 
 	}
+	
 	private void add_publisher(){
 		 String userData =
                  new String(publication_builtin_topic_data.user_data.value.toArrayByte(null));
@@ -111,12 +112,9 @@ public class BuiltinPublisherListener extends DataReaderAdapter {
         	 //Update the current publisher count for topic t at ZK path /topics/t/pub/ebLocator
         	 if (topic_publisherCount_map.get(topic)==1){
         		 create_EB_znode(topic,publication_builtin_topic_data);
-        	 }
-
-        	 //Create topic path for topic t if it does not already exist
-        	 if (topic_publisherCount_map.get(topic)==1){
-        		 logger.debug(String.format("Creating topic path for topic:%s\n",topic));
-        		 create_topic_path(publication_builtin_topic_data.topic_name,
+        	 
+        		 logger.debug(String.format("Creating topic session for topic:%s\n",topic));
+        		 create_topic_session(publication_builtin_topic_data.topic_name,
         				 publication_builtin_topic_data.type_name);
         	 }
         	 
@@ -130,7 +128,11 @@ public class BuiltinPublisherListener extends DataReaderAdapter {
 
 	private void delete_publisher(){
 		//retrieve the topic name for which this publisher was removed
-		String topic=instanceHandle_topic_map.get(info.instance_handle.toString());
+		String topic=instanceHandle_topic_map.getOrDefault(info.instance_handle.toString(),null);
+		if (topic==null){
+			logger.debug("This publisher was created by RS\n");
+			return;
+		}
 		//remove the instance handle 
 		instanceHandle_topic_map.remove(info.instance_handle.toString());
 
@@ -148,16 +150,14 @@ public class BuiltinPublisherListener extends DataReaderAdapter {
 		
 		//Remove EB znode under /topics/t/pub if publisher count in this domain is 0
 		if (updated_count==0){
-			delete_EB_znode(topic);
-		}
+			PublicationBuiltinTopicData publication_builtin_topic_data=
+					delete_EB_znode(topic);
+
    	 	//Remove topic path if publisher count==0
-   	 	if (updated_count==0){
-   	 		logger.debug(String.format("Removing topic route for %s as publisher count is 0\n", topic));
-   	 		rs.deleteTopicRoute(String.format("%s::%sSubscriptionSession::%sSubscriptionRoute",
-   	 				domainRouteName,topic,topic));
-   	 	}
+   	 		logger.debug(String.format("Removing topic session for %s as publisher count is 0\n", topic));
+   	 		rs.deleteTopicSession(String.format("%s::%sSubscriptionSession",
+   	 				domainRouteName,publication_builtin_topic_data.topic_name));
    	 	
-   	 	if(updated_count==0){
    	 		//Remove listener for RB assignment if publisher count=0
    	 		NodeCache topicCache=topic_topicCache_map.remove(topic);
    	 		String RB_address= new String(topicCache.getCurrentData().getData());
@@ -187,8 +187,11 @@ public class BuiltinPublisherListener extends DataReaderAdapter {
    	 		
    	 	}
 	}
+	
 	private void create_EB_znode(String topic,
 			PublicationBuiltinTopicData publication_builtin_data){
+		//ensure topic path /topics/t/pub and /topics/t/sub exists
+	    ensure_topic_path_exists(topic);
 		String parent_path= (CuratorHelper.TOPIC_PATH+"/"+topic+"/pub");
 		String znode_name=ebAddress;
 		String path=ZKPaths.makePath(parent_path, znode_name);
@@ -203,11 +206,15 @@ public class BuiltinPublisherListener extends DataReaderAdapter {
 		logger.debug(String.format("Created EB znode for EB:%s under topic path:%s\n",
 				ebAddress,parent_path));
 	}
-	private void delete_EB_znode(String topic){
+	
+	private PublicationBuiltinTopicData delete_EB_znode(String topic){
+		PublicationBuiltinTopicData publication_builtin_topic_data=null;
 		String parent_path= (CuratorHelper.TOPIC_PATH+"/"+topic+"/pub");
 		String znode_name=ebAddress;
 		String path=ZKPaths.makePath(parent_path, znode_name);
 		try {
+			publication_builtin_topic_data=(PublicationBuiltinTopicData) CuratorHelper.
+					deserialize(client.getData().forPath(path));
 			client.delete().forPath(path);
 		} catch (Exception e) {
 			logger.error(e.getMessage(),e);
@@ -215,6 +222,7 @@ public class BuiltinPublisherListener extends DataReaderAdapter {
 		logger.debug(String.format("Deleted EB znode:%s under topic path:%s "
 				+ "as publisher count for topic:%s is 0\n",
 				ebAddress,parent_path,topic));
+		return publication_builtin_topic_data;
 	}
 	
 	private void install_topic_to_rb_assignment_listener(String topic){
@@ -244,6 +252,8 @@ public class BuiltinPublisherListener extends DataReaderAdapter {
 						 }else{
 							 HashSet<String> topics=rb_topics_map.get(rb_address);
 							 topics.add(topic_path);
+							 logger.debug(String.format("RB:%s for topic:%s already exists as peer\n",
+									 rb_address,topic_path));
 						 }
 					 }
 				}
@@ -256,8 +266,33 @@ public class BuiltinPublisherListener extends DataReaderAdapter {
 		}
 	}
 	
-	private void create_topic_path(String topic_name,String type_name){
-		rs.createTopicRoute(domainRouteName, 
+	private void ensure_topic_path_exists(String topic){
+		String topic_subscribers_path=CuratorHelper.TOPIC_PATH+"/"+topic+"/sub";
+		String topic_publishers_path=CuratorHelper.TOPIC_PATH+"/"+topic+"/pub";
+		try {
+			if(client.checkExists().forPath(topic_subscribers_path)==null)
+			{
+				client.create().
+					creatingParentsIfNeeded().
+					forPath(topic_subscribers_path);
+				logger.debug(String.format("EB:%s created topic path for subscribers:%s\n",
+						ebAddress,topic_subscribers_path));
+			}
+			if(client.checkExists().forPath(topic_publishers_path)==null)
+			{
+				client.create().
+					creatingParentsIfNeeded().
+					forPath(topic_publishers_path);
+				logger.debug(String.format("EB:%s created topic path for publishers:%s\n",
+						ebAddress,topic_publishers_path));
+			}
+		} catch (Exception e) {
+			logger.error(e.getMessage(),e);
+		}	
+	}
+	
+	private void create_topic_session(String topic_name,String type_name){
+		rs.createTopicSession(domainRouteName, 
 				 "str://\"<session name=\"" + topic_name + "SubscriptionSession\">" +
                          "<topic_route name=\"" + topic_name + "SubscriptionRoute\">" +
                          "<route_types>true</route_types>" +
