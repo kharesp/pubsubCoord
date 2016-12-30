@@ -42,9 +42,7 @@ public abstract class GenericSubscriber<T extends Copyable> {
 	private void initialize() throws Exception{
 		try {
 			participant= new DefaultParticipant(domainId);
-			System.out.println("Created participant for domainId:"+domainId);
 			participant.registerType(typeSupport);
-			System.out.println("Registered type:"+typeSupport.get_type_nameI());
 		} catch (Exception e) {
 			throw e;
 		}
@@ -52,7 +50,6 @@ public abstract class GenericSubscriber<T extends Copyable> {
 		
 		topic = participant.create_topic(topicName,typeSupport);
 		
-		System.out.println("Created topic for name:"+topic.get_name());
 		
 		DataReaderListener listener= new DataReaderListener();
 		
@@ -66,11 +63,7 @@ public abstract class GenericSubscriber<T extends Copyable> {
 	}
 	
 	private class DataReaderListener extends DataReaderAdapter{
-		public DataReaderListener(){
-			System.out.println("Created listener object");
-		}
 		public void on_data_available(DataReader reader){
-			System.out.println("on data available called back!");
 			take().forEach(t-> process(t));
 		}
 	}
@@ -85,7 +78,6 @@ public abstract class GenericSubscriber<T extends Copyable> {
 
 			for (int j = 0; j < dataSeq.size(); ++j) {
 				if (((SampleInfo) infoSeq.get(j)).valid_data) {
-					System.out.println("Received sample!");
 					T sample= (T) dataSeq.get(j);
 					T dataCopy= (T) typeSupport.create_data();
 					dataCopy.copy_from(sample);

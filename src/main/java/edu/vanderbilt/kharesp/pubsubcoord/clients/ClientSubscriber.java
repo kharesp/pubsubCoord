@@ -39,24 +39,15 @@ public class ClientSubscriber {
 		}
         
         if (typeName.equals("DataSample_64B")){
-    		receive_DataSample_64B(domainId,topicName);
+    		receive_DataSample_64B(domainId,topicName,sampleCount);
     	}else{
     		System.out.println(String.format("TypeName:%s not recognized.\nExiting..",typeName));
     		return;
     	}
-        while(receiveCount<sampleCount){
-        	try{
-        		Thread.sleep(1000);
-        	}catch(InterruptedException e){
-        		System.out.println("Interrupted");
-        		writer.close();
-        		break;
-        	}
-        }
-        writer.close();
+       
     }
     
-    public static void receive_DataSample_64B(int domainId,String topicName){
+    public static void receive_DataSample_64B(int domainId,String topicName,int sampleCount){
     	GenericSubscriber<DataSample_64B> subscriber=null;
     	try{
     		subscriber= new GenericSubscriber<DataSample_64B>(domainId,
@@ -72,6 +63,7 @@ public class ClientSubscriber {
                             writer.write(String.format("%d,%d\n",sample.sample_id,latency));
 						}
     		};
+    		wait_for_data(sampleCount);
     		
     	}catch(Exception e){
     		System.out.println(e.getMessage());
@@ -81,4 +73,16 @@ public class ClientSubscriber {
     	}
     }
 
+    public static void wait_for_data(int sampleCount){
+    	 while(receiveCount<sampleCount){
+         	try{
+         		Thread.sleep(1000);
+         	}catch(InterruptedException e){
+         		System.out.println("Interrupted");
+         		writer.close();
+         		break;
+         	}
+         }
+         writer.close();
+    }
 }
