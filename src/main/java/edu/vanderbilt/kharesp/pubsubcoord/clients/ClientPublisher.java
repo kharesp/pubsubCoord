@@ -1,5 +1,6 @@
 package edu.vanderbilt.kharesp.pubsubcoord.clients;
 
+import com.rti.dds.publication.Publisher;
 import com.rti.idl.test.DataSample_64B;
 import com.rti.idl.test.DataSample_64BTypeSupport;
 
@@ -28,20 +29,24 @@ public class ClientPublisher {
 	public static void publish_DataSample_64B(int domainId,String topicName,
 			int sampleCount,int sendInterval){
 
-		GenericPublisher<DataSample_64B> publisher = null;
+		DefaultParticipant participant=null;
 		DataSample_64B instance = new DataSample_64B();
+
 		try {
-			publisher = new GenericPublisher<DataSample_64B>(domainId, topicName,
+			participant = new DefaultParticipant(domainId);
+			Publisher publisher = participant.get_default_publisher();
+			GenericDataWriter<DataSample_64B> datawriter = 
+					new GenericDataWriter<DataSample_64B>(publisher, topicName,
 					DataSample_64BTypeSupport.get_instance());
 
 			for (int count = 0; count < sampleCount; ++count) {
 				instance.sample_id = count;
 				instance.ts_milisec = System.currentTimeMillis();
-				publisher.write(instance);
+				datawriter.write(instance);
 
-				//if (count % 100 == 0) {
-					System.out.println("Sent sample:" + count);
-				//}
+				// if (count % 100 == 0) {
+				System.out.println("Sent sample:" + count);
+				// }
 				try {
 					Thread.sleep(sendInterval);
 				} catch (InterruptedException ix) {
@@ -52,7 +57,7 @@ public class ClientPublisher {
 		} catch (Exception e) {
 			System.out.println(e.getMessage());
 		} finally {
-			publisher.cleanup();
+			participant.shutdown();
 		}
 	}
 

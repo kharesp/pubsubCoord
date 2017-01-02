@@ -7,6 +7,8 @@ import java.io.UnsupportedEncodingException;
 import java.lang.management.ManagementFactory;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
+
+import com.rti.dds.subscription.Subscriber;
 import com.rti.idl.test.DataSample_64B;
 import com.rti.idl.test.DataSample_64BTypeSupport;
 
@@ -48,9 +50,11 @@ public class ClientSubscriber {
     }
     
     public static void receive_DataSample_64B(int domainId,String topicName,int sampleCount){
-    	GenericSubscriber<DataSample_64B> subscriber=null;
+    	DefaultParticipant participant=null;
     	try{
-    		subscriber= new GenericSubscriber<DataSample_64B>(domainId,
+    		participant=new DefaultParticipant(domainId);
+    		Subscriber subscriber= participant.get_default_subscriber();
+			GenericDataReader<DataSample_64B> datareader= new GenericDataReader<DataSample_64B>(subscriber,
     				topicName,DataSample_64BTypeSupport.get_instance()){
 
 						@Override
@@ -63,13 +67,14 @@ public class ClientSubscriber {
                             writer.write(String.format("%d,%d\n",sample.sample_id,latency));
 						}
     		};
+    		datareader.receive();
     		wait_for_data(sampleCount);
     		
     	}catch(Exception e){
     		System.out.println(e.getMessage());
     		
     	}finally{
-    		subscriber.cleanup();
+    		participant.shutdown();
     	}
     }
 
