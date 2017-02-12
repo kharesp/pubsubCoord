@@ -6,3 +6,4 @@ bin/
 .project
 libs/
 src/main/java/com/
+tests/

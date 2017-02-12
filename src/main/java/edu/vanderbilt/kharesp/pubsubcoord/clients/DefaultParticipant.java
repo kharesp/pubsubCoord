@@ -2,6 +2,7 @@ package edu.vanderbilt.kharesp.pubsubcoord.clients;
 
 import com.rti.dds.domain.DomainParticipant;
 import com.rti.dds.domain.DomainParticipantFactory;
+import com.rti.dds.domain.DomainParticipantQos;
 import com.rti.dds.infrastructure.StatusKind;
 import com.rti.dds.publication.Publisher;
 import com.rti.dds.subscription.Subscriber;
@@ -18,6 +19,18 @@ public class DefaultParticipant {
     			TheParticipantFactory.
                 create_participant(this.domainId,
                 		DomainParticipantFactory.PARTICIPANT_QOS_DEFAULT,
+                        null , StatusKind.STATUS_MASK_NONE);
+        if (participant == null) {
+        	throw new Exception("create_participant error\n");
+        }        
+    }
+
+    public DefaultParticipant(int domainId,DomainParticipantQos qos) throws Exception{
+    	this.domainId=domainId;
+    	participant=DomainParticipantFactory.
+    			TheParticipantFactory.
+                create_participant(this.domainId,
+                		qos,
                         null , StatusKind.STATUS_MASK_NONE);
         if (participant == null) {
         	throw new Exception("create_participant error\n");
@@ -64,6 +77,10 @@ public class DefaultParticipant {
     
     public void registerType(TypeSupportImpl typeSupport) throws Exception{
     	typeSupport.register_typeI(participant, typeSupport.get_type_nameI());
+    }
+    
+    public void add_peer(String locator){
+    	participant.add_peer(locator);
     }
     
     public DomainParticipant participant(){

@@ -29,9 +29,15 @@ public class BuiltinPublisherListener extends DataReaderAdapter {
     
     //This local domain's DomainRouteName's Prefix
     private static final String DOMAIN_ROUTE_NAME_PREFIX = "EdgeBrokerDomainRoute";
+    private static final String LOCAL_DOMAIN_ROUTE_NAME_PREFIX = "LocalEdgeBrokerDomainRoute";
+    private static final String PUB_DOMAIN_ROUTE_NAME_PREFIX = "PubEdgeBrokerDomainRoute";
 
+
+    private boolean emulated_broker;
 	private String ebAddress;
 	private String domainRouteName;
+	private String localDomainRouteName;
+	private String pubDomainRouteName;
 	private Logger logger;
 	private CuratorFramework client;
 	private RoutingServiceAdministrator rs;
@@ -48,12 +54,16 @@ public class BuiltinPublisherListener extends DataReaderAdapter {
 	//map to keep track of RBs this local domain is interfacing with and for which topics
 	private HashMap<String,HashSet<String>> rb_topics_map=new HashMap<String,HashSet<String>>();
 
-	public BuiltinPublisherListener(String ebAddress,CuratorFramework client, RoutingServiceAdministrator rs){
+	public BuiltinPublisherListener(String ebAddress,CuratorFramework client,
+			RoutingServiceAdministrator rs,boolean emulated_broker){
 		this.ebAddress=ebAddress;
 		domainRouteName=DOMAIN_ROUTE_NAME_PREFIX+"@"+ebAddress;
+		localDomainRouteName= LOCAL_DOMAIN_ROUTE_NAME_PREFIX + "@" + ebAddress;
+		pubDomainRouteName= PUB_DOMAIN_ROUTE_NAME_PREFIX + "@" + ebAddress;
 		logger=LogManager.getLogger(this.getClass().getSimpleName());
 		this.rs=rs;
 		this.client=client;
+		this.emulated_broker=emulated_broker;
 	}
 
 	public void on_data_available(DataReader reader) {
@@ -117,6 +127,7 @@ public class BuiltinPublisherListener extends DataReaderAdapter {
         		 create_topic_session(publication_builtin_topic_data.topic_name,
         				 publication_builtin_topic_data.type_name);
         	 }
+
         	 
         	 //Install listener for RB assignment for topic t
         	 install_topic_to_rb_assignment_listener(topic);
@@ -153,10 +164,18 @@ public class BuiltinPublisherListener extends DataReaderAdapter {
 			PublicationBuiltinTopicData publication_builtin_topic_data=
 					delete_EB_znode(topic);
 
-   	 	//Remove topic path if publisher count==0
+   	 		//Remove topic session if publisher count==0
    	 		logger.debug(String.format("Removing topic session for %s as publisher count is 0\n", topic));
-   	 		rs.deleteTopicSession(String.format("%s::%sSubscriptionSession",
+   	 		if(emulated_broker){
+   	 			rs.deleteTopicSession(String.format("%s::%sSubscriptionSession",
+   	 				localDomainRouteName,publication_builtin_topic_data.topic_name));
+   	 			rs.deleteTopicSession(String.format("%s::%sSubscriptionSession",
+   	 				pubDomainRouteName,publication_builtin_topic_data.topic_name));
+   	 		}
+   	 		else{
+   	 			rs.deleteTopicSession(String.format("%s::%sSubscriptionSession",
    	 				domainRouteName,publication_builtin_topic_data.topic_name));
+   	 		}
    	 	
    	 		//Remove listener for RB assignment if publisher count=0
    	 		NodeCache topicCache=topic_topicCache_map.remove(topic);
@@ -189,7 +208,7 @@ public class BuiltinPublisherListener extends DataReaderAdapter {
 	}
 	
 	private void create_EB_znode(String topic,
-			PublicationBuiltinTopicData publication_builtin_data){
+		PublicationBuiltinTopicData publication_builtin_data){
 		//ensure topic path /topics/t/pub and /topics/t/sub exists
 	    ensure_topic_path_exists(topic);
 		String parent_path= (CuratorHelper.TOPIC_PATH+"/"+topic+"/pub");
@@ -248,7 +267,13 @@ public class BuiltinPublisherListener extends DataReaderAdapter {
 							 rb_topics_map.get(rb_address).add(topic_path);
 							 String rbLocator = "tcpv4_wan://" + rb_address + ":" + RB_P1_BIND_PORT;
 							 logger.debug(String.format("Adding RB:%s as peer\n",rbLocator));
-							 rs.addPeer(domainRouteName,rbLocator, false);
+							 if(emulated_broker){
+								 rs.addPeer(pubDomainRouteName,rbLocator, false);
+							 }
+							 else{
+								 rs.addPeer(domainRouteName,rbLocator, false);
+							 }
+								 
 						 }else{
 							 HashSet<String> topics=rb_topics_map.get(rb_address);
 							 topics.add(topic_path);
@@ -292,8 +317,7 @@ public class BuiltinPublisherListener extends DataReaderAdapter {
 	}
 	
 	private void create_topic_session(String topic_name,String type_name){
-		rs.createTopicSession(domainRouteName, 
-				 "str://\"<session name=\"" + topic_name + "SubscriptionSession\">" +
+		String command_string="str://\"<session name=\"" + topic_name + "SubscriptionSession\">" +
                          "<topic_route name=\"" + topic_name + "SubscriptionRoute\">" +
                          "<route_types>true</route_types>" +
                          "<publish_with_original_info>true</publish_with_original_info>" +
@@ -301,7 +325,7 @@ public class BuiltinPublisherListener extends DataReaderAdapter {
                          "<input participant=\"1\">" +
                          "<topic_name>" + topic_name + "</topic_name>" +
                          "<registered_type_name>" + type_name + "</registered_type_name>" +
-                         "<creation_mode>IMMEDIATE</creation_mode>" +
+                         "<creation_mode>ON_DOMAIN_MATCH</creation_mode>" +
                          "<datareader_qos>" +
                          "<reliability>" +
                          "<kind>RELIABLE_RELIABILITY_QOS</kind>" +
@@ -318,7 +342,7 @@ public class BuiltinPublisherListener extends DataReaderAdapter {
                          "<output>" +
                          "<topic_name>" + topic_name + "</topic_name>" +
                          "<registered_type_name>" + type_name + "</registered_type_name>" +
-                         "<creation_mode>IMMEDIATE</creation_mode>" +
+                         "<creation_mode>ON_DOMAIN_AND_ROUTE_MATCH</creation_mode>" +
                          "<datawriter_qos>" +
                          "<reliability>" +
                          "<kind>RELIABLE_RELIABILITY_QOS</kind>" +
@@ -339,7 +363,14 @@ public class BuiltinPublisherListener extends DataReaderAdapter {
                          "</datawriter_qos>" +
                          "</output>" +
                          "</topic_route>" +
-                         "</session>\"");
+                         "</session>\"";
+		if(emulated_broker){
+			rs.createTopicSession(localDomainRouteName, command_string);
+			rs.createTopicSession(pubDomainRouteName, command_string);
+		}
+		else{
+			rs.createTopicSession(domainRouteName,command_string);
+		}
 	}
 
 }

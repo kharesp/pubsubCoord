@@ -24,8 +24,11 @@ public class RoutingBroker {
     // Public facing ports for interconnection of domains
     private static final String RB_P1_BIND_PORT = "8500"; //only for receiving data 
     private static final String RB_P2_BIND_PORT = "8501"; //only for sending data 
+
     //public facing port of local domains
     private static final String EB_P2_BIND_PORT = "8502"; 
+    private static final String EB_P2_PUB_BIND_PORT="8502";
+    private static final String EB_P2_SUB_BIND_PORT="8503";
 
     private static final String DOMAIN_ROUTE_NAME_PREFIX = "RoutingBrokerDomainRoute";
     private static final String TOPIC_ROUTE_CODE = "107"; //this means letter 'k'
@@ -34,6 +37,7 @@ public class RoutingBroker {
     private String rbAddress;
     private String domainRouteName;
 
+    private boolean emulated_broker;
     private String zkConnector;
     private CuratorFramework client = null;
 
@@ -55,11 +59,12 @@ public class RoutingBroker {
     private HashSet<String> publishedTopics = new HashSet<String>();
     private HashSet<String> topicRoutesList = new HashSet<String>();
 
-    public RoutingBroker(String zkConnector) {
+    public RoutingBroker(String zkConnector,boolean emulated_broker) {
     	//configure logger
     	logger= LogManager.getLogger(this.getClass().getSimpleName());
     	// ZK server address
     	this.zkConnector=zkConnector;
+    	this.emulated_broker=emulated_broker;
     	
         try {
             rbAddress= InetAddress.getLocalHost().getHostAddress();
@@ -79,13 +84,14 @@ public class RoutingBroker {
     }
 
     public static void main(String args[]){
-    	if (args.length <1){
-    		System.out.println("Enter zk connector string: address:port");
+    	if (args.length <2){
+    		System.out.println("Usage:  zk_address:zk_port, emulated_broker(0/1)");
     		return;
     	}
     	PropertyConfigurator.configure("log4j.properties");
     	String zkConnector=args[0];
-    	new RoutingBroker(zkConnector).start();
+    	int emulated_broker=Integer.parseInt(args[1]);
+    	new RoutingBroker(zkConnector,emulated_broker>0?true:false).start();
     }
 
     public void start(){
@@ -198,8 +204,13 @@ public class RoutingBroker {
                     	PublicationBuiltinTopicData publication_builtin_data=
                     			(PublicationBuiltinTopicData)CuratorHelper.deserialize(event.getData().getData());
                     	String eb_address= eb_path.split("/")[4];
-                    	String eb_locator="tcpv4_wan://"+eb_address+":"+EB_P2_BIND_PORT;
-
+                    	String eb_locator;
+                    	if (emulated_broker){
+                    		eb_locator="tcpv4_wan://"+eb_address+":"+EB_P2_PUB_BIND_PORT;
+                    	}
+                    	else{
+                    		eb_locator="tcpv4_wan://"+eb_address+":"+EB_P2_BIND_PORT;
+                    	}
                     	logger.debug(String.format("Publishers for topic:%s discovered in EB:%s domain\n",
                     			topic,eb_address));
                     	
@@ -278,7 +289,13 @@ public class RoutingBroker {
                     	SubscriptionBuiltinTopicData subscription_builtin_data=
                     			(SubscriptionBuiltinTopicData)(CuratorHelper.deserialize(event.getData().getData()));
                     	String eb_address= eb_path.split("/")[4];
-                    	String eb_locator="tcpv4_wan://"+eb_address+":"+EB_P2_BIND_PORT;
+                    	String eb_locator;
+                    	if(emulated_broker){
+                    		eb_locator="tcpv4_wan://"+eb_address+":"+EB_P2_SUB_BIND_PORT;
+                    	}
+                    	else{
+                    		eb_locator="tcpv4_wan://"+eb_address+":"+EB_P2_BIND_PORT;
+                    	}
 
                     	logger.debug(String.format("Subscriber for topic:%s discovered in EB:%s domain\n",
                     			topic,eb_address));
@@ -293,7 +310,7 @@ public class RoutingBroker {
                     	}else{
                     		logger.debug(String.format("eb:%s already exists as peer for RB_P2_BIND_PORT:%s\n", 
                     				eb_locator,RB_P2_BIND_PORT));
-                    		p1_eb_topics_map.get(eb_address).add(topic);
+                    		p2_eb_topics_map.get(eb_address).add(topic);
                     	}
 
                         // if topic route is not created, it needs to be created
