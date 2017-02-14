@@ -1,8 +1,6 @@
 package edu.vanderbilt.kharesp.pubsubcoord.clients;
 
 
-import java.util.LinkedList;
-import com.rti.dds.domain.DomainParticipant;
 import com.rti.dds.infrastructure.Copyable;
 import com.rti.dds.infrastructure.RETCODE_NO_DATA;
 import com.rti.dds.infrastructure.ResourceLimitsQosPolicy;
@@ -21,7 +19,6 @@ import com.rti.dds.util.LoanableSequence;
 
 public abstract class GenericDataReader<T extends Copyable> {
 
-	private String topicName;
 	private TypeSupportImpl typeSupport;
 	private Subscriber subscriber;
 	private Topic topic;
@@ -30,26 +27,13 @@ public abstract class GenericDataReader<T extends Copyable> {
 	private LoanableSequence dataSeq;
 
 
-    public GenericDataReader(Subscriber subscriber,String topicName,
-    		TypeSupportImpl typeSupport) throws Exception {
+    public GenericDataReader(Subscriber subscriber,Topic topic) throws Exception {
     	this.subscriber=subscriber;
-		this.topicName=topicName;
-		this.typeSupport=typeSupport;
+    	this.topic=topic;
 		initialize();
 	}
 	
 	private void initialize() throws Exception{
-	    DomainParticipant participant= subscriber.get_participant();
-	    //Register type 
-	    typeSupport.register_typeI(participant, typeSupport.get_type_nameI());
-	    //Create Topic
-	    topic=participant.create_topic(topicName,typeSupport.get_type_nameI(),
-				DomainParticipant.TOPIC_QOS_DEFAULT, null,
-				StatusKind.STATUS_MASK_NONE);
-		if (topic == null) {
-			throw new Exception("create_topic error\n");
-		}
-		
 		reader= subscriber.create_datareader(topic,Subscriber.DATAREADER_QOS_DEFAULT,
 				null,StatusKind.STATUS_MASK_ALL);
 		if (reader== null) {
@@ -61,7 +45,7 @@ public abstract class GenericDataReader<T extends Copyable> {
 	
 	private class DataReaderListener extends DataReaderAdapter{
 		public void on_data_available(DataReader reader){
-			take().forEach(t-> process(t));
+			take();
 		}
 	}
 	
@@ -71,19 +55,19 @@ public abstract class GenericDataReader<T extends Copyable> {
 	}
 	
 	@SuppressWarnings("unchecked") 
-	private Iterable<T> take(){
-		LinkedList<T> data= new LinkedList<T>();
+	private void  take(){
 		try {
 			reader.take_untyped(dataSeq, infoSeq, ResourceLimitsQosPolicy.LENGTH_UNLIMITED,
 					SampleStateKind.ANY_SAMPLE_STATE, ViewStateKind.ANY_VIEW_STATE,
 					InstanceStateKind.ANY_INSTANCE_STATE);
 
 			for (int j = 0; j < dataSeq.size(); ++j) {
-				if (((SampleInfo) infoSeq.get(j)).valid_data) {
+				SampleInfo info=(SampleInfo)infoSeq.get(j);
+				if (info.valid_data) {
 					T sample= (T) dataSeq.get(j);
 					T dataCopy= (T) typeSupport.create_data();
 					dataCopy.copy_from(sample);
-					data.addLast(dataCopy);
+					process(dataCopy,info);
 				}
 			}
 		} catch (RETCODE_NO_DATA noData)
@@ -91,9 +75,8 @@ public abstract class GenericDataReader<T extends Copyable> {
 		} finally {
 			reader.return_loan_untyped(dataSeq, infoSeq);
 		}
-		return data;
 	}
 	
-	public abstract void process(T sample);
+	public abstract void process(T sample,SampleInfo info);
    
 }

@@ -1,6 +1,7 @@
 package edu.vanderbilt.kharesp.pubsubcoord.clients;
 
 import com.rti.dds.publication.Publisher;
+import com.rti.dds.topic.Topic;
 import com.rti.idl.test.DataSample_64B;
 import com.rti.idl.test.DataSample_64BTypeSupport;
 import org.apache.zookeeper.CreateMode;
@@ -58,9 +59,10 @@ public class ClientPublisher {
 
 		try {
 			participant = new DefaultParticipant(domainId);
+			participant.registerType(DataSample_64BTypeSupport.get_instance());
+			Topic topic=participant.create_topic(topicName, DataSample_64BTypeSupport.get_instance());
 			Publisher publisher = participant.get_default_publisher();
-			GenericDataWriter<DataSample_64B> datawriter = new GenericDataWriter<DataSample_64B>(publisher, topicName,
-					DataSample_64BTypeSupport.get_instance());
+			GenericDataWriter<DataSample_64B> datawriter = new GenericDataWriter<DataSample_64B>(publisher,topic); 
 			//wait before all publishers have joined to begin publishing
 			barrier.waitOnBarrier();
 			for (int count = 0; count < sampleCount; ++count) {

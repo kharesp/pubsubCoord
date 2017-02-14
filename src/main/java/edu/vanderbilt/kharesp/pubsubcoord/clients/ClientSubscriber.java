@@ -7,7 +7,9 @@ import java.net.InetAddress;
 import java.text.SimpleDateFormat;
 import java.util.Date;
 
+import com.rti.dds.subscription.SampleInfo;
 import com.rti.dds.subscription.Subscriber;
+import com.rti.dds.topic.Topic;
 import com.rti.idl.test.DataSample_64B;
 import com.rti.idl.test.DataSample_64BTypeSupport;
 
@@ -68,12 +70,13 @@ public class ClientSubscriber {
 		DefaultParticipant participant = null;
 		try {
 			participant = new DefaultParticipant(domainId);
+			participant.registerType(DataSample_64BTypeSupport.get_instance());
+			Topic topic=participant.create_topic(topicName, DataSample_64BTypeSupport.getInstance());
 			Subscriber subscriber = participant.get_default_subscriber();
-			GenericDataReader<DataSample_64B> datareader = new GenericDataReader<DataSample_64B>(subscriber, topicName,
-					DataSample_64BTypeSupport.get_instance()) {
+			GenericDataReader<DataSample_64B> datareader = new GenericDataReader<DataSample_64B>(subscriber,topic) {
 				private SimpleDateFormat sdf= new SimpleDateFormat("MM/dd/yyyy,HH:mm:ss");
 				@Override
-				public void process(DataSample_64B sample) {
+				public void process(DataSample_64B sample,SampleInfo info) {
 					if (sample.sample_id == receiveCount)
 						receiveCount += 1;
 					long reception_ts = System.currentTimeMillis();

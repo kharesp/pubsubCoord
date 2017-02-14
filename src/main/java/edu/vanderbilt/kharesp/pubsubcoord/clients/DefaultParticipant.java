@@ -82,6 +82,9 @@ public class DefaultParticipant {
     public void add_peer(String locator){
     	participant.add_peer(locator);
     }
+    public void remove_peer(String locator){
+    	participant.remove_peer(locator);
+    }
     
     public DomainParticipant participant(){
     	return participant;

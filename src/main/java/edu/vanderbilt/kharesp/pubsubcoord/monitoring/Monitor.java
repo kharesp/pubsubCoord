@@ -18,6 +18,7 @@ import org.apache.curator.utils.CloseableUtils;
 import org.apache.log4j.Logger;
 import org.apache.zookeeper.CreateMode;
 
+import com.rti.dds.subscription.SampleInfo;
 import com.rti.dds.subscription.Subscriber;
 import com.rti.idl.RTI.RoutingService.Monitoring.DomainRouteStatusSet;
 import com.rti.idl.RTI.RoutingService.Monitoring.DomainRouteStatusSetTypeSupport;
@@ -122,7 +123,7 @@ public class Monitor {
 				ROUTING_SERVICE_TOPIC,RoutingServiceStatusSetTypeSupport.get_instance()){
 					private SimpleDateFormat sdf= new SimpleDateFormat("MM/dd/yyyy,HH:mm:ss");
 					@Override
-					public void process(RoutingServiceStatusSet sample) {
+					public void process(RoutingServiceStatusSet sample,SampleInfo info) {
 						long millis=System.currentTimeMillis();
 						String status= String.format("%d,%s,%s,%f,%f,%f,%f,%d\n",
 								millis,
@@ -141,7 +142,7 @@ public class Monitor {
 				DOMAIN_ROUTE_TOPIC,DomainRouteStatusSetTypeSupport.get_instance()){
 					private SimpleDateFormat sdf= new SimpleDateFormat("MM/dd/yyyy,HH:mm:ss");
 					@Override
-					public void process(DomainRouteStatusSet sample) {
+					public void process(DomainRouteStatusSet sample,SampleInfo info) {
 						long millis=System.currentTimeMillis();
 						String status=String.format("%d,%s,%s,%s,%f,%f,%f\n",
 								millis,
@@ -157,7 +158,7 @@ public class Monitor {
 				SESSION_TOPIC,SessionStatusSetTypeSupport.get_instance()){
 					private SimpleDateFormat sdf= new SimpleDateFormat("MM/dd/yyyy,HH:mm:ss");
 					@Override
-					public void process(SessionStatusSet sample) {
+					public void process(SessionStatusSet sample,SampleInfo info) {
 					    long millis=System.currentTimeMillis();
 						String status=String.format("%d,%s,%s,%s,%s,%d,%f,%f,%f,%f,%d,%f,%f,%f,%f,%d,%f,%f,%f,%f\n",
 								millis,

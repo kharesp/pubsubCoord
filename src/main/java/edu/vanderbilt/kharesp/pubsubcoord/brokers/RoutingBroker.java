@@ -20,15 +20,15 @@ import org.apache.log4j.Logger;
 public class RoutingBroker {
 	private Logger logger;
 	// Domain Id in which Routing Brokers operate
-    private static final int WAN_DOMAIN_ID = 230;
+    public static final int WAN_DOMAIN_ID = 230;
     // Public facing ports for interconnection of domains
-    private static final String RB_P1_BIND_PORT = "8500"; //only for receiving data 
-    private static final String RB_P2_BIND_PORT = "8501"; //only for sending data 
+    public static final String RB_P1_BIND_PORT = "8500"; //only for receiving data 
+    public static final String RB_P2_BIND_PORT = "8501"; //only for sending data 
 
     //public facing port of local domains
-    private static final String EB_P2_BIND_PORT = "8502"; 
-    private static final String EB_P2_PUB_BIND_PORT="8502";
-    private static final String EB_P2_SUB_BIND_PORT="8503";
+    public static final String EB_P2_BIND_PORT = "8502"; 
+    public static final String EB_P2_PUB_BIND_PORT="8502";
+    public static final String EB_P2_SUB_BIND_PORT="8503";
 
     private static final String DOMAIN_ROUTE_NAME_PREFIX = "RoutingBrokerDomainRoute";
     private static final String TOPIC_ROUTE_CODE = "107"; //this means letter 'k'

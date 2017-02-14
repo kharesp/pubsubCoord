@@ -20,15 +20,15 @@ import com.rti.dds.subscription.builtin.SubscriptionBuiltinTopicDataTypeSupport;
 
 public class EdgeBroker {
 	// Domain id in which Routing Brokers operate in the cloud
-	private static final int WAN_DOMAIN_ID = 230;
+	public static final int WAN_DOMAIN_ID = 230;
 	// Default domain id for each region
-	private static final int DEFAULT_DOMAIN_ID=0;
+	public static final int DEFAULT_DOMAIN_ID=0;
 	// Domain id in which publishers operate in this local domain
-	private static final int PUB_DOMAIN_ID=0;
+	public static final int PUB_DOMAIN_ID=0;
 	// Domain id in which subscribers operate in this local domain
-	private static final int SUB_DOMAIN_ID=1;
+	public static final int SUB_DOMAIN_ID=1;
     // public facing port for sending/receiving data for this local domain
-    private static final String EB_P2_BIND_PORT = "8502";
+    public static final String EB_P2_BIND_PORT = "8502";
     private static final String EB_P2_PUB_BIND_PORT = "8502";
     private static final String EB_P2_SUB_BIND_PORT = "8503";
 
