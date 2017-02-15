@@ -73,7 +73,8 @@ public class ClientSubscriber {
 			participant.registerType(DataSample_64BTypeSupport.get_instance());
 			Topic topic=participant.create_topic(topicName, DataSample_64BTypeSupport.getInstance());
 			Subscriber subscriber = participant.get_default_subscriber();
-			GenericDataReader<DataSample_64B> datareader = new GenericDataReader<DataSample_64B>(subscriber,topic) {
+			GenericDataReader<DataSample_64B> datareader = new GenericDataReader<DataSample_64B>(subscriber,
+					topic,DataSample_64BTypeSupport.get_instance()) {
 				private SimpleDateFormat sdf= new SimpleDateFormat("MM/dd/yyyy,HH:mm:ss");
 				@Override
 				public void process(DataSample_64B sample,SampleInfo info) {

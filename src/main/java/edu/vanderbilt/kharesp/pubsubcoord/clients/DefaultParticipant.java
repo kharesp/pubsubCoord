@@ -47,6 +47,10 @@ public class DefaultParticipant {
 		}	
 		return publisher;
     }
+
+    public void delete_publisher(Publisher publisher){
+    	participant.delete_publisher(publisher);
+    }
     
     public Subscriber get_default_subscriber() throws Exception{
 		Subscriber subscriber = participant.create_subscriber(
@@ -56,6 +60,10 @@ public class DefaultParticipant {
 			throw new Exception("create_subscriber error\n");
 		}
 		return subscriber;
+    }
+    
+    public void delete_subscriber(Subscriber subscriber){
+    	participant.delete_subscriber(subscriber);
     }
     
     public Topic create_topic(String topicName,TypeSupportImpl typeSupport) throws Exception{
@@ -68,6 +76,10 @@ public class DefaultParticipant {
 		return topic;
     }
     
+    public void delete_topic(Topic topic){
+    	participant.delete_topic(topic);
+    }
+    
     public void shutdown(){
     	if (participant!=null){
     		participant.delete_contained_entities();
@@ -77,6 +89,11 @@ public class DefaultParticipant {
     
     public void registerType(TypeSupportImpl typeSupport) throws Exception{
     	typeSupport.register_typeI(participant, typeSupport.get_type_nameI());
+    }
+    
+    public void unregisterType(String type_name)
+    {
+    	participant.unregister_type(type_name);
     }
     
     public void add_peer(String locator){

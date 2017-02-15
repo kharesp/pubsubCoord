@@ -2,18 +2,14 @@ package edu.vanderbilt.kharesp.pubsubcoord.routing;
 
 import java.lang.reflect.Method;
 import java.net.InetAddress;
-import java.util.ArrayList;
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
-
 import com.rti.dds.domain.DomainParticipantFactory;
 import com.rti.dds.domain.DomainParticipantQos;
 import com.rti.dds.infrastructure.PropertyQosPolicyHelper;
 import com.rti.dds.infrastructure.TransportBuiltinKind;
 import com.rti.dds.topic.Topic;
 import com.rti.dds.topic.TypeSupportImpl;
-
 import edu.vanderbilt.kharesp.pubsubcoord.brokers.EdgeBroker;
 import edu.vanderbilt.kharesp.pubsubcoord.brokers.RoutingBroker;
 import edu.vanderbilt.kharesp.pubsubcoord.clients.DefaultParticipant;
@@ -25,20 +21,21 @@ public class DomainRoute {
 	public static String EB_SUB_DOMAIN_ROUTE="EB_SUB_DOMAIN_ROUTE";
 	public static String EB_LOCAL_DOMAIN_ROUTE="EB_LOCAL_DOMAIN_ROUTE";
 	
+	
 	private static final String TYPES_PACKAGE = "com.rti.idl.test";
 	
 	private String domainRouteName;
 	private DefaultParticipant firstParticipant;
 	private DefaultParticipant secondParticipant; 
-	private Map<String,Topic> subscription_topic_sessions;
-	private Map<String,Topic> publication_topic_sessions;
+	private Map<String,TopicSession<?>> subscription_topic_sessions;
+	private Map<String,TopicSession<?>> publication_topic_sessions;
 
 	
 	public DomainRoute(String domainRouteName,String type) throws Exception{
 		this.domainRouteName=domainRouteName;
 
-		subscription_topic_sessions=new HashMap<String,Topic>();
-		publication_topic_sessions=new HashMap<String,Topic>();
+		subscription_topic_sessions=new HashMap<String, TopicSession<?>>();
+		publication_topic_sessions=new HashMap<String, TopicSession<?>>();
 		
 		if(type.equals(RB_DOMAIN_ROUTE)){
 			firstParticipant=new DefaultParticipant(RoutingBroker.WAN_DOMAIN_ID,
@@ -83,15 +80,82 @@ public class DomainRoute {
 		}
 	}
 
+	@SuppressWarnings("rawtypes")
 	public void createTopicSession(String topicName,String typeName,String session_type) throws Exception
 	{
+		if(session_type.equals(TopicSession.SUBSCRIPTION_SESSION)){
+			//only create subscription topic session if it does not exist
+			if(!subscription_topic_sessions.containsKey(topicName)){
+				if (!publication_topic_sessions.containsKey(topicName)) {
+					TypeSupportImpl typeSupport = get_type_support_instance(typeName);
+					firstParticipant.registerType(typeSupport);
+					Topic t1 = firstParticipant.create_topic(topicName, typeSupport);
+					secondParticipant.registerType(typeSupport);
+					Topic t2 = secondParticipant.create_topic(topicName, typeSupport);
+					subscription_topic_sessions.put(topicName,
+							new TopicSession(session_type, t1, t2, typeSupport,
+									firstParticipant, secondParticipant));
+
+				} else {
+					//Since publication topic session already exists in this domain route, 
+					//we don't need to regiter types or create topics
+					TopicSession<?> session = publication_topic_sessions.get(topicName);
+					subscription_topic_sessions.put(topicName,
+							new TopicSession(session_type, session.t1,session.t2,session.typeSupport,
+									firstParticipant, secondParticipant));
+				}
+			}
+		}else if(session_type.equals(TopicSession.PUBLICATION_SESSION)){
+			//only create publication topic session if it does not exist
+			if(!publication_topic_sessions.containsKey(topicName)){
+				if (!subscription_topic_sessions.containsKey(topicName)) {
+					TypeSupportImpl typeSupport = get_type_support_instance(typeName);
+					firstParticipant.registerType(typeSupport);
+					Topic t1 = firstParticipant.create_topic(topicName, typeSupport);
+					secondParticipant.registerType(typeSupport);
+					Topic t2 = secondParticipant.create_topic(topicName, typeSupport);
+					publication_topic_sessions.put(topicName,
+							new TopicSession(session_type, t1, t2, typeSupport,
+									firstParticipant, secondParticipant));
+
+				} else {
+					//Since subscription topic session already exists in this domain route, 
+					//we don't need to regiter types or create topics
+					TopicSession<?> session = subscription_topic_sessions.get(topicName);
+					publication_topic_sessions.put(topicName,
+							new TopicSession(session_type, session.t1,session.t2,session.typeSupport,
+									firstParticipant, secondParticipant));
+				}
+			}
+		}else{
+			System.out.format("Session type:%s not recognized\n",session_type);
+			throw new Exception(String.format("Session type:%s not recognized",session_type));
+		}
 	}	
 	
-	public void deleteTopicSession(String topic_name){
-		
+	public void deleteTopicSession(String topic_name,String type_name,String session_type) throws Exception{
+		if(session_type.equals(TopicSession.SUBSCRIPTION_SESSION)){
+			TopicSession<?> session=subscription_topic_sessions.remove(topic_name);
+			session.deleteEndpoints();
+			if(!publication_topic_sessions.containsKey(topic_name)){
+				firstParticipant.delete_topic(session.t1);
+				secondParticipant.delete_topic(session.t2);
+				firstParticipant.unregisterType(type_name);
+				secondParticipant.unregisterType(type_name);
+			}
+		}else if(session_type.equals(TopicSession.PUBLICATION_SESSION)){
+			TopicSession<?> session=publication_topic_sessions.remove(topic_name);
+			session.deleteEndpoints();
+			if(!subscription_topic_sessions.containsKey(topic_name)){
+				firstParticipant.delete_topic(session.t1);
+				secondParticipant.delete_topic(session.t2);
+				firstParticipant.unregisterType(type_name);
+				secondParticipant.unregisterType(type_name);
+			}
+		}else{
+			throw new Exception(String.format("session_type:%s not recoginzed",session_type));
+		}
 	}
-	
-	
 	
 	private DomainParticipantQos participantQos(String port) throws Exception
 	{

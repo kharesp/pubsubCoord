@@ -20,7 +20,7 @@ public class RoutingService {
 	}
 	
 	public void createTopicSession(String domainRouteName,String topic_name,
-			String type_name,String session_type){
+			String type_name,String session_type) throws Exception{
 		domain_routes.get(domainRouteName).createTopicSession(topic_name, type_name, session_type);
 	}
 

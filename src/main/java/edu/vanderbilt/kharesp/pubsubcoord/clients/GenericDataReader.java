@@ -27,9 +27,10 @@ public abstract class GenericDataReader<T extends Copyable> {
 	private LoanableSequence dataSeq;
 
 
-    public GenericDataReader(Subscriber subscriber,Topic topic) throws Exception {
+    public GenericDataReader(Subscriber subscriber,Topic topic,TypeSupportImpl typeSupport) throws Exception {
     	this.subscriber=subscriber;
     	this.topic=topic;
+    	this.typeSupport=typeSupport;
 		initialize();
 	}
 	
