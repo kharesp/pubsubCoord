@@ -20,6 +20,7 @@ import org.apache.zookeeper.CreateMode;
 
 import com.rti.dds.subscription.SampleInfo;
 import com.rti.dds.subscription.Subscriber;
+import com.rti.dds.topic.Topic;
 import com.rti.idl.RTI.RoutingService.Monitoring.DomainRouteStatusSet;
 import com.rti.idl.RTI.RoutingService.Monitoring.DomainRouteStatusSetTypeSupport;
 import com.rti.idl.RTI.RoutingService.Monitoring.RoutingServiceStatusSet;
@@ -114,13 +115,25 @@ public class Monitor {
 		logger.debug("Initializing DDS entities for monitoring");
 		//create default participant
 		participant= new DefaultParticipant(MONITORING_DOMAIN_ID);
+		//register types
+		participant.registerType(RoutingServiceStatusSetTypeSupport.get_instance());
+		participant.registerType(DomainRouteStatusSetTypeSupport.get_instance());
+		participant.registerType(SessionStatusSetTypeSupport.get_instance());
+		
+		//create topics
+		Topic routingServiceStatusSet_topic= participant.create_topic(ROUTING_SERVICE_TOPIC,
+				RoutingServiceStatusSetTypeSupport.get_instance());
+		Topic domainRouteStatusSet_topic= participant.create_topic(DOMAIN_ROUTE_TOPIC,
+				DomainRouteStatusSetTypeSupport.get_instance());
+		Topic sessionStatusSet_topic= participant.create_topic(SESSION_TOPIC,
+				SessionStatusSetTypeSupport.get_instance());
 
 		//create default subscriber
 		subscriber= participant.get_default_subscriber();
 		
 		// create datareaders for RoutingService, DomainRoute and Session status
 		routingService_statusSet_reader = new GenericDataReader<RoutingServiceStatusSet>(subscriber,
-				ROUTING_SERVICE_TOPIC,RoutingServiceStatusSetTypeSupport.get_instance()){
+				routingServiceStatusSet_topic,RoutingServiceStatusSetTypeSupport.get_instance()){
 					private SimpleDateFormat sdf= new SimpleDateFormat("MM/dd/yyyy,HH:mm:ss");
 					@Override
 					public void process(RoutingServiceStatusSet sample,SampleInfo info) {
@@ -139,7 +152,7 @@ public class Monitor {
 		};
 
 		domainRoute_statusSet_reader = new GenericDataReader<DomainRouteStatusSet>(subscriber,
-				DOMAIN_ROUTE_TOPIC,DomainRouteStatusSetTypeSupport.get_instance()){
+				domainRouteStatusSet_topic,DomainRouteStatusSetTypeSupport.get_instance()){
 					private SimpleDateFormat sdf= new SimpleDateFormat("MM/dd/yyyy,HH:mm:ss");
 					@Override
 					public void process(DomainRouteStatusSet sample,SampleInfo info) {
@@ -155,7 +168,7 @@ public class Monitor {
 					}
 		};
 		session_statusSet_reader = new GenericDataReader<SessionStatusSet>(subscriber,
-				SESSION_TOPIC,SessionStatusSetTypeSupport.get_instance()){
+				sessionStatusSet_topic,SessionStatusSetTypeSupport.get_instance()){
 					private SimpleDateFormat sdf= new SimpleDateFormat("MM/dd/yyyy,HH:mm:ss");
 					@Override
 					public void process(SessionStatusSet sample,SampleInfo info) {

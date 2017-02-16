@@ -19,7 +19,6 @@ public class TopicSession<T extends Copyable>{
 	private DefaultParticipant firstParticipant;
 	private DefaultParticipant secondParticipant;
 	private GenericDataWriter<T> dw;
-	@SuppressWarnings("unused")
 	private GenericDataReader<T> dr;
 	private String sessionType;
 
@@ -47,6 +46,7 @@ public class TopicSession<T extends Copyable>{
 					dw.write(sample);
 				}
 			};
+			dr.receive();
 			
 		}else if(session_type.equals(PUBLICATION_SESSION)){
 			publisher=firstParticipant.get_default_publisher();
@@ -58,6 +58,7 @@ public class TopicSession<T extends Copyable>{
 					dw.write(sample);
 				}
 			};
+			dr.receive();
 		}else{
 			throw new Exception(String.format("session_type:%s not recognized",session_type));
 		}
