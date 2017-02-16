@@ -7,6 +7,7 @@ import com.rti.dds.infrastructure.ResourceLimitsQosPolicy;
 import com.rti.dds.infrastructure.StatusKind;
 import com.rti.dds.subscription.DataReader;
 import com.rti.dds.subscription.DataReaderAdapter;
+import com.rti.dds.subscription.DataReaderQos;
 import com.rti.dds.subscription.InstanceStateKind;
 import com.rti.dds.subscription.SampleInfo;
 import com.rti.dds.subscription.SampleInfoSeq;
@@ -23,6 +24,7 @@ public abstract class GenericDataReader<T extends Copyable> {
 	private Subscriber subscriber;
 	private Topic topic;
 	private DataReader reader;
+	private DataReaderQos qos;
 	private SampleInfoSeq infoSeq;
 	private LoanableSequence dataSeq;
 
@@ -33,10 +35,27 @@ public abstract class GenericDataReader<T extends Copyable> {
     	this.typeSupport=typeSupport;
 		initialize();
 	}
+    
+    public GenericDataReader(Subscriber subscriber,Topic topic,TypeSupportImpl typeSupport,DataReaderQos qos) throws Exception {
+    	this.subscriber=subscriber;
+    	this.topic=topic;
+    	this.typeSupport=typeSupport;
+    	this.qos=qos;
+		initialize();
+	}
 	
 	private void initialize() throws Exception{
-		reader= subscriber.create_datareader(topic,Subscriber.DATAREADER_QOS_DEFAULT,
+		if(qos==null){
+			reader= subscriber.create_datareader(topic,Subscriber.DATAREADER_QOS_DEFAULT,
 				null,StatusKind.STATUS_MASK_ALL);
+			System.out.println("Generic DataReader belongs to domain:"+reader.get_subscriber().get_participant().get_domain_id());
+			System.out.println(reader.get_instance_handle());
+		}else{
+			reader= subscriber.create_datareader(topic,qos,
+				null,StatusKind.STATUS_MASK_ALL);
+			System.out.println("Generic DataReader belongs to domain:"+reader.get_subscriber().get_participant().get_domain_id());
+			System.out.println(reader.get_instance_handle());
+		}
 		if (reader== null) {
 			throw new Exception("create_datareader error\n");
 		}

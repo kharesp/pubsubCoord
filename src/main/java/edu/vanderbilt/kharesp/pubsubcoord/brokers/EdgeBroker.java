@@ -29,8 +29,8 @@ public class EdgeBroker {
 	public static final int SUB_DOMAIN_ID=1;
     // public facing port for sending/receiving data for this local domain
     public static final String EB_P2_BIND_PORT = "8502";
-    private static final String EB_P2_PUB_BIND_PORT = "8502";
-    private static final String EB_P2_SUB_BIND_PORT = "8503";
+    public static final String EB_P2_PUB_BIND_PORT = "8502";
+    public static final String EB_P2_SUB_BIND_PORT = "8503";
 
     private static final String DOMAIN_ROUTE_NAME_PREFIX = "EdgeBrokerDomainRoute";
     private static final String LOCAL_DOMAIN_ROUTE_NAME_PREFIX = "LocalEdgeBrokerDomainRoute";

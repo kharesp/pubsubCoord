@@ -4,7 +4,9 @@ import com.rti.dds.domain.DomainParticipant;
 import com.rti.dds.domain.DomainParticipantFactory;
 import com.rti.dds.domain.DomainParticipantQos;
 import com.rti.dds.infrastructure.StatusKind;
+import com.rti.dds.publication.DataWriterQos;
 import com.rti.dds.publication.Publisher;
+import com.rti.dds.subscription.DataReaderQos;
 import com.rti.dds.subscription.Subscriber;
 import com.rti.dds.topic.Topic;
 import com.rti.dds.topic.TypeSupportImpl;
@@ -105,5 +107,20 @@ public class DefaultParticipant {
     
     public DomainParticipant participant(){
     	return participant;
+    }
+    public DataReaderQos get_default_datareader_qos(){
+    	DataReaderQos qos=new DataReaderQos();
+    	participant.get_default_datareader_qos(qos);
+    	return qos;
+    }
+    
+    public DataWriterQos get_default_datawriter_qos(){
+    	DataWriterQos qos=new DataWriterQos();
+    	participant.get_default_datawriter_qos(qos);
+    	return qos;
+    }
+    public int get_domainId()
+    {
+    	return domainId;
     }
 }
