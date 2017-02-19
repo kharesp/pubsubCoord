@@ -54,6 +54,10 @@ public class RoutingBroker {
     // Map for keeping track of active topics in EB domains interfacing with RB_P2_BIND_PORT
     private HashMap<String,HashSet<String>> p2_eb_topics_map=new HashMap<>();
     
+    //Map for keeping track of active subscribing domains for a topic
+    private HashMap<String,Set<String>> topic_subscribingDomains= new HashMap<>();
+    private HashMap<String,Set<String>> topic_publishingDomains= new HashMap<>();
+    
     // Used for managing topics assigned to this routing broker
     private HashSet<String> subscribedTopics = new HashSet<String>();
     private HashSet<String> publishedTopics = new HashSet<String>();
@@ -204,6 +208,14 @@ public class RoutingBroker {
                     	PublicationBuiltinTopicData publication_builtin_data=
                     			(PublicationBuiltinTopicData)CuratorHelper.deserialize(event.getData().getData());
                     	String eb_address= eb_path.split("/")[4];
+                    	
+                    	//Add this publishing domain for this topic to topic_publishingDomains map
+                    	if(topic_publishingDomains.containsKey(topic)){
+                    		topic_publishingDomains.get(topic).add(eb_address);
+                    		
+                    	}else{
+                    		topic_publishingDomains.put(topic, new HashSet<String>(Arrays.asList(eb_address)));
+                    	}
                     	String eb_locator;
                     	if (emulated_broker){
                     		eb_locator="tcpv4_wan://"+eb_address+":"+EB_P2_PUB_BIND_PORT;
@@ -236,8 +248,13 @@ public class RoutingBroker {
                             	if(!topicRoutesList.contains(topic)){
                             		logger.debug(String.format("Both publishers and subscribers for topic:%s exist,"
                             				+ " creating Topic Session for topic:%s\n",topic,topic));
-                            		createTopicSession(publication_builtin_data.topic_name,
+                            		//topic session is only created if publishers and subscribers exist in two different domains
+                            		Set<String> publishing_domains=topic_publishingDomains.get(topic);
+                            		Set<String> subscribing_domains=topic_subscribingDomains.get(topic);
+                            		if(!publishing_domains.containsAll(subscribing_domains)){
+                            			createTopicSession(publication_builtin_data.topic_name,
                             				publication_builtin_data.type_name);
+                            		}
                             		topicRoutesList.add(topic);
                             	}
                             }
@@ -247,7 +264,13 @@ public class RoutingBroker {
                     case CHILD_REMOVED: {
                     	String eb_path=event.getData().getPath();
                     	String topic= eb_path.split("/")[2];
+                    	String eb_address= eb_path.split("/")[4];
                     	logger.debug(String.format("EB:%s was removed\n", eb_path));
+                    	
+                    	//eb_address domain no longer has any publisher for this topic. Remove it from topic_publishingDomains map
+                    	if(topic_publishingDomains.containsKey(topic)){
+                    		topic_publishingDomains.get(topic).remove(eb_address);
+                    	}
                     	
                     	PublicationBuiltinTopicData publication_builtin_topic_data= 
                     			(PublicationBuiltinTopicData) CuratorHelper.deserialize(event.getData().getData());
@@ -289,6 +312,15 @@ public class RoutingBroker {
                     	SubscriptionBuiltinTopicData subscription_builtin_data=
                     			(SubscriptionBuiltinTopicData)(CuratorHelper.deserialize(event.getData().getData()));
                     	String eb_address= eb_path.split("/")[4];
+                    	
+                    	//Add this subscribing domain for this topic to topic_subscribingDomains map
+                    	if(topic_subscribingDomains.containsKey(topic)){
+                    		topic_subscribingDomains.get(topic).add(eb_address);
+                    	}else{
+                    		topic_subscribingDomains.put(topic, new HashSet<String>(Arrays.asList(eb_address)));
+                    	}
+                    	
+                    	
                     	String eb_locator;
                     	if(emulated_broker){
                     		eb_locator="tcpv4_wan://"+eb_address+":"+EB_P2_SUB_BIND_PORT;
@@ -322,8 +354,13 @@ public class RoutingBroker {
                             	if(!topicRoutesList.contains(topic)){
                             		logger.debug(String.format("Both publishers and subscribers for topic:%s exist,"
                             				+ " creating Topic Session for topic:%s\n",topic,topic));
-                            		createTopicSession(subscription_builtin_data.topic_name,
+                            		//topic route is only created if publishers and subscribers exist in two different domains
+                            		Set<String> publishing_domains=topic_publishingDomains.get(topic);
+                            		Set<String> subscribing_domains=topic_subscribingDomains.get(topic);
+                            		if(!publishing_domains.containsAll(subscribing_domains)){
+                            			createTopicSession(subscription_builtin_data.topic_name,
                             				subscription_builtin_data.type_name);
+                            		}
                             		topicRoutesList.add(topic);
                             	}
                             }
@@ -333,8 +370,14 @@ public class RoutingBroker {
                     case CHILD_REMOVED: {
                     	String eb_path=event.getData().getPath();
                     	String topic= eb_path.split("/")[2];
+                    	String eb_address= eb_path.split("/")[4];
 
                     	logger.debug(String.format("EB:%s was removed\n", eb_path));
+                    	
+                    	//eb_address domain no longer has any subscriber for this topic. Remove it from topic_subscribingDomains map
+                    	if(topic_subscribingDomains.containsKey(topic)){
+                    		topic_subscribingDomains.get(topic).remove(eb_address);
+                    	}
                     	
                     	SubscriptionBuiltinTopicData subscription_builtin_topic_data=
                     			(SubscriptionBuiltinTopicData) CuratorHelper.deserialize(event.getData().getData());
