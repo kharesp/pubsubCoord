@@ -1,7 +1,10 @@
-rb1
-eb1
-1
-1
-1
-1000
-100
+rbs:rb1
+ebs:eb1
+clients:cli1,cli1-2
+topics:t1
+no_subs:1
+no_pubs:1
+sub_distribution:cli1-2:t1:1
+pub_distribution:cli1:t1:1
+sample_count:5000
+sleep_interval:100

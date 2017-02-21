@@ -32,13 +32,12 @@ public class ClientPublisher {
 		client = CuratorFrameworkFactory.newClient(zkConnector, new ExponentialBackoffRetry(1000, 3));
 		client.start();
 		try {
-			client.create().withProtection().withMode(CreateMode.EPHEMERAL_SEQUENTIAL)
-					.forPath(String.format("/experiment/%s/pub/pub", runId), new byte[0]);
+			
 			barrier = new DistributedBarrier(client, String.format("/experiment/%s/barriers/pub", runId));
 
 			
 			if (typeName.equals("DataSample_64B")) {
-				publish_DataSample_64B(domainId, topicName, sampleCount, sendInterval);
+				publish_DataSample_64B(domainId, topicName, sampleCount, sendInterval,runId);
 			} else {
 				System.out.println(String.format("TypeName:%s not recognized.\nExiting..", typeName));
 				return;
@@ -52,7 +51,7 @@ public class ClientPublisher {
 
 	}
 
-	public static void publish_DataSample_64B(int domainId, String topicName, int sampleCount, int sendInterval) {
+	public static void publish_DataSample_64B(int domainId, String topicName, int sampleCount, int sendInterval,String runId) {
 
 		DefaultParticipant participant = null;
 		DataSample_64B instance = new DataSample_64B();
@@ -63,6 +62,8 @@ public class ClientPublisher {
 			Topic topic=participant.create_topic(topicName, DataSample_64BTypeSupport.get_instance());
 			Publisher publisher = participant.get_default_publisher();
 			GenericDataWriter<DataSample_64B> datawriter = new GenericDataWriter<DataSample_64B>(publisher,topic); 
+			client.create().withProtection().withMode(CreateMode.EPHEMERAL_SEQUENTIAL)
+				.forPath(String.format("/experiment/%s/pub/pub", runId), new byte[0]);
 			//wait before all publishers have joined to begin publishing
 			barrier.waitOnBarrier();
 			for (int count = 0; count < sampleCount; ++count) {

@@ -66,28 +66,58 @@ class Experiment(object):
 
     #exit
     self._zk.stop()
-    
 
   def parse(self):
     with open(self.conf) as f:
-      lines=f.readlines()
-    self.rbs=lines[0].rstrip().split(',')    
-    self.ebs=lines[1].rstrip().split(',')
-    self.no_topics=int(lines[2].rstrip())
-    self.no_subscribers=int(lines[3].rstrip())
-    self.no_publishers=int(lines[4].rstrip())
-    self.sample_count=int(lines[5].rstrip())
-    self.sleep_interval=int(lines[6].rstrip())
-    self.topics=[]
-    for i in range(self.no_topics):
-      self.topics.append('t%d'%(i+1))
-    self.clients=[]
-    for i in range(len(self.ebs)):
-      self.clients.append('cli%d'%(i+1))
+      for line in f:
+        if line.startswith('rbs'):
+          self.rbs=line.rstrip().partition(':')[2].split(',')
+          print('rbs:'+str(self.rbs))
+        elif line.startswith('ebs'):
+          self.ebs=line.rstrip().partition(':')[2].split(',')
+          print('ebs:'+str(self.ebs))
+        elif line.startswith('clients'):
+          self.clients=line.rstrip().partition(':')[2].split(',')
+          print('clients:'+str(self.clients))
+        elif line.startswith('topics'):
+          self.topics=line.rstrip().partition(':')[2].split(',')
+          self.no_topics=len(self.topics)
+          print('topics:'+str(self.topics))
+        elif line.startswith('no_subs'):
+          self.no_subscribers=int(line.rstrip().partition(':')[2])
+          print('no_subs:'+str(self.no_subscribers))
+        elif line.startswith('no_pubs'):
+          self.no_publishers=int(line.rstrip().partition(':')[2])
+          print('no_pubs:'+str(self.no_publishers))
+        elif line.startswith('sub_distribution'):
+          self.subscribers={}
+          for sub_description in line.rstrip().partition(':')[2].split(','):
+            host,topic,num_sub= sub_description.split(':')
+            if host in self.subscribers:
+              self.subscribers[host].update({topic: num_sub})
+            else:
+              self.subscribers[host]={topic: num_sub}
+          print('subscribers:'+str(self.subscribers))
+        elif line.startswith('pub_distribution'):
+          self.publishers={}  
+          for pub_description in line.rstrip().partition(':')[2].split(','):
+            host,topic,num_pub= pub_description.split(':')
+            if host in self.publishers:
+              self.publishers[host].update({topic: num_pub})
+            else:
+              self.publishers[host]={topic: num_pub}
+          print('publishers:'+str(self.publishers))
+        elif line.startswith('sample_count'):
+          self.sample_count=int(line.rstrip().partition(':')[2])
+          print('sample_count:'+str(self.sample_count))
+        elif line.startswith('sleep_interval'):
+          self.sleep_interval=int(line.rstrip().partition(':')[2])
+          print('sleep_interval:'+str(self.sleep_interval))
+        else:
+          print('invalid line')
     self.brokers= ','.join(self.ebs)+','+','.join(self.rbs)
 
   def clean(self):
-
     #kill existing Broker processes on brokers
     command_string='cd %s && ansible-playbook cluster.yml --limit %s\
       --extra-vars="action=kill pattern=Broker"'%(metadata.ansible,self.brokers)
@@ -103,10 +133,20 @@ class Experiment(object):
       --extra-vars="action=kill pattern=Monitor"'%(metadata.ansible,self.brokers)
     subprocess.check_call(['bash','-c', command_string])
 
+    #clean shared memory resources and semaphores on brokers
+    command_string='cd %s && ansible-playbook cluster.yml --limit %s\
+      --extra-vars="action=ipcsrm"'%(metadata.ansible,self.brokers)
+    subprocess.check_call(['bash','-c', command_string])
+
     #kill existing publishers and subscriber processes on clients
     command_string='cd %s && ansible-playbook cluster.yml --limit %s\
       --extra-vars="action=kill pattern=pubsubcoord.clients.Client"'%\
       (metadata.ansible,','.join(self.clients))
+    subprocess.check_call(['bash','-c', command_string])
+
+    #clean shared memory resources and semaphores on clients
+    command_string='cd %s && ansible-playbook cluster.yml --limit %s\
+      --extra-vars="action=ipcsrm"'%(metadata.ansible,','.join(self.clients))
     subprocess.check_call(['bash','-c', command_string])
 
   def clean_zk_tree(self):
@@ -166,13 +206,13 @@ class Experiment(object):
     #  --extra-vars="action=start_ptpd"'%(metadata.ansible,','.join(self.rbs))
     #subprocess.check_call(['bash','-c',command_string])
 
-    command_string='cd %s && ansible-playbook cluster.yml --limit %s\
-      --extra-vars="action=start_ptpd"'%(metadata.ansible,','.join(self.ebs))
-    subprocess.check_call(['bash','-c',command_string])
+    #command_string='cd %s && ansible-playbook cluster.yml --limit %s\
+    #  --extra-vars="action=start_ptpd"'%(metadata.ansible,','.join(self.ebs))
+    #subprocess.check_call(['bash','-c',command_string])
 
-    command_string='cd %s && ansible-playbook cluster.yml --limit %s\
-      --extra-vars="action=start_ptpd"'%(metadata.ansible,','.join(self.clients))
-    subprocess.check_call(['bash','-c',command_string])
+    #command_string='cd %s && ansible-playbook cluster.yml --limit %s\
+    #  --extra-vars="action=start_ptpd"'%(metadata.ansible,','.join(self.clients))
+    #subprocess.check_call(['bash','-c',command_string])
 
 
   def setup_zk_coordination(self):
@@ -205,7 +245,7 @@ class Experiment(object):
     pub_barrier_open=False
     monitoring_barrier_open=False
     def _barrier_listener(children,event):
-      nonlocal sub_barrier_open, pub_barrier_open,finished_barrier_open,monitoring_barrier_open
+      nonlocal sub_barrier_open,pub_barrier_open,finished_barrier_open,monitoring_barrier_open
       if event and event.type==EventType.CHILD:
         if event.path==sub_path and len(children)==self.no_subscribers:
           print("all subscribers have joined. opening subscriber barrier")
@@ -233,56 +273,20 @@ class Experiment(object):
     ChildrenWatch(client=self._zk,path=monitoring_path,func=_barrier_listener,send_event=True)
    
   def start_subscribers(self):
-    no_subscribers_per_topic=self.no_subscribers//len(self.topics)
-    remaining_subscribers=self.no_subscribers%len(self.topics)
-    no_subscribers_per_topic_per_region= no_subscribers_per_topic//len(self.ebs)
-    remaining_subscribers_per_topic=no_subscribers_per_topic%len(self.ebs)
-    if (no_subscribers_per_topic_per_region >0):
-      for cli in self.clients:
-        for t in self.topics:
-          command_string='cd %s && ansible-playbook cluster.yml --limit %s\
-            --extra-vars="action=start_sub subscriber_count=%d topic=%s sample_count=%d run_id=%s"'%\
-            (metadata.ansible,cli,no_subscribers_per_topic_per_region,t,self.sample_count,self.run_id)
-          subprocess.check_call(['bash','-c',command_string])
-    
-    for t in self.topics:
-      for i in range(remaining_subscribers_per_topic):
-        command_string='cd %s && ansible-playbook cluster.yml --limit cli%d\
-          --extra-vars="action=start_sub subscriber_count=%d topic=%s sample_count=%d run_id=%s"'%\
-          (metadata.ansible,i+1,1,t,self.sample_count,self.run_id)
+    for host,topic_count_map in self.subscribers.items():
+      for topic,count in topic_count_map.items():
+        command_string='cd %s && ansible-playbook cluster.yml --limit %s\
+          --extra-vars="action=start_sub subscriber_count=%s topic=%s sample_count=%d run_id=%s"'%\
+          (metadata.ansible,host,count,topic,self.sample_count,self.run_id)
         subprocess.check_call(['bash','-c',command_string])
-
-    for i in range(remaining_subscribers):
-      command_string='cd %s && ansible-playbook cluster.yml --limit cli%d\
-        --extra-vars="action=start_sub subscriber_count=%d topic=t%d sample_count=%d run_id=%s"'%\
-        (metadata.ansible,i+1,1,i+1,self.sample_count,self.run_id)
-      subprocess.check_call(['bash','-c',command_string])
 
   def start_publishers(self):
-    no_publishers_per_topic= self.no_publishers//len(self.topics)
-    remaining_publishers= self.no_publishers%len(self.topics)
-    no_publishers_per_topic_per_region= no_publishers_per_topic//len(self.ebs)
-    remaining_publishers_per_topic=  no_publishers_per_topic%len(self.ebs)
-    if(no_publishers_per_topic_per_region>0):
-      for cli in self.clients:
-        for t in self.topics:
-          command_string='cd %s && ansible-playbook cluster.yml --limit %s\
-            --extra-vars="action=start_pub publisher_count=%d topic=%s sample_count=%d sleep_interval=%d run_id=%s"'%\
-            (metadata.ansible,cli,no_publishers_per_topic_per_region,t,self.sample_count,self.sleep_interval,self.run_id)
-          subprocess.check_call(['bash','-c',command_string])
-
-    for t in self.topics:
-      for i in range(remaining_publishers_per_topic):
-        command_string='cd %s && ansible-playbook cluster.yml --limit cli%d\
-          --extra-vars="action=start_pub publisher_count=%d topic=%s sample_count=%d sleep_interval=%d run_id=%s"'%\
-          (metadata.ansible,i+1,1,t,self.sample_count,self.sleep_interval,self.run_id)
+    for host, topic_count_map in self.publishers.items():
+      for topic,count in topic_count_map.items():
+        command_string='cd %s && ansible-playbook cluster.yml --limit %s\
+          --extra-vars="action=start_pub publisher_count=%s topic=%s sample_count=%d sleep_interval=%d run_id=%s"'%\
+          (metadata.ansible,host,count,topic,self.sample_count,self.sleep_interval,self.run_id)
         subprocess.check_call(['bash','-c',command_string])
-
-    for i in range(remaining_publishers):
-      command_string='cd %s && ansible-playbook cluster.yml --limit cli%d\
-        --extra-vars="action=start_pub publisher_count=%d topic=t%d sample_count=%d sleep_interval=%d run_id=%s"'%\
-        (metadata.ansible,i+1,1,i+1,self.sample_count,self.sleep_interval,run_id)
-      subprocess.check_call(['bash','-c',command_string])
 
   def collect_logs(self):
     #fetch logs from all brokers

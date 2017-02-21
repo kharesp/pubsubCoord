@@ -15,16 +15,9 @@
         <qos_profile name="Profile" is_default_qos="true">
             <!-- QoS used to configure the data writer created in the example code -->                
             <participant_qos>
-                <!--
                 <transport_builtin>
-                    <mask>UDPv4</mask>
+                    <mask>UDPv4|SHMEM</mask>
                 </transport_builtin>
-                <discovery>
-                    <initial_peers>
-                        <element>100@builtin.udpv4://127.0.0.1</element>
-                    </initial_peers>
-                </discovery>
-                -->
             </participant_qos>
             <datawriter_qos>
                 <reliability>

@@ -49,11 +49,8 @@ public class ClientSubscriber {
 			latencyFile = outdir + "/" + runId + "/" + file_name;
 			writer = new PrintWriter(latencyFile, "UTF-8");
 
-			client.create().withProtection().withMode(CreateMode.EPHEMERAL_SEQUENTIAL)
-					.forPath(String.format("/experiment/%s/sub/sub", runId), new byte[0]);
-
 			if (typeName.equals("DataSample_64B")) {
-				receive_DataSample_64B(domainId, topicName, sampleCount);
+				receive_DataSample_64B(domainId, topicName, sampleCount,runId);
 			} else {
 				System.out.println(String.format("TypeName:%s not recognized.\nExiting..", typeName));
 				return;
@@ -66,7 +63,7 @@ public class ClientSubscriber {
 
 	}
 
-	public static void receive_DataSample_64B(int domainId, String topicName, int sampleCount) {
+	public static void receive_DataSample_64B(int domainId, String topicName, int sampleCount,String runId) {
 		DefaultParticipant participant = null;
 		try {
 			participant = new DefaultParticipant(domainId);
@@ -87,6 +84,8 @@ public class ClientSubscriber {
 					writer.write(String.format("%d,%s,%d,%d\n",reception_ts,sdf.format(new Date(reception_ts)),sample.sample_id, latency));
 				}
 			};
+			client.create().withProtection().withMode(CreateMode.EPHEMERAL_SEQUENTIAL)
+				.forPath(String.format("/experiment/%s/sub/sub", runId), new byte[0]);
 			datareader.receive();
 			wait_for_data(sampleCount);
 
