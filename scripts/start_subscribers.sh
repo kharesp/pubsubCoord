@@ -14,7 +14,10 @@ log_dir=$6
 run_id=$7
 zk_connector=$8
 
+mkdir -p ~/log/sub
+
 for i in `seq 1 $subscriber_count`;
 do
-  java -cp ./build/libs/pubsubCoord.jar edu.vanderbilt.kharesp.pubsubcoord.clients.ClientSubscriber $domain_id $topic $type_name $sample_count $log_dir $run_id $zk_connector &
+  ( ( nohup java -cp ./pubsubCoord.jar edu.vanderbilt.kharesp.pubsubcoord.clients.ClientSubscriber $domain_id $topic $type_name $sample_count $log_dir $run_id $zk_connector 1>~/log/sub/sub_"$topic"_"$i".log 2>&1 ) & )
+  sleep 1
 done

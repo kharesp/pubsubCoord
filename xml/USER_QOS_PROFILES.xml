@@ -16,7 +16,7 @@
             <!-- QoS used to configure the data writer created in the example code -->                
             <participant_qos>
                 <transport_builtin>
-                    <mask>UDPv4|SHMEM</mask>
+                    <mask>UDPv4</mask>
                 </transport_builtin>
             </participant_qos>
             <datawriter_qos>
@@ -44,8 +44,8 @@
                     <!-- Set this field to 0 if you want brokered communication (all communication
                          passes through the persistence service before being received by the datareader;
                          i.e. datawriter and datareader cannot 'see' each other directly) 
-                    -->
                     <direct_communication>true</direct_communication>
+                    -->
                 </durability>
 
                 <history>

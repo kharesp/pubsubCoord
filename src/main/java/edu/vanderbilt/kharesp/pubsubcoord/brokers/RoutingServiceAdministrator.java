@@ -10,8 +10,10 @@ import com.rti.connext.requestreply.Requester;
 import com.rti.connext.requestreply.RequesterParams;
 import com.rti.dds.domain.DomainParticipant;
 import com.rti.dds.domain.DomainParticipantFactory;
+import com.rti.dds.domain.DomainParticipantQos;
 import com.rti.dds.infrastructure.InstanceHandleSeq;
 import com.rti.dds.infrastructure.StatusKind;
+import com.rti.dds.infrastructure.TransportBuiltinKind;
 import com.rti.idl.RTI.RoutingService.Administration.CommandKind;
 import com.rti.idl.RTI.RoutingService.Administration.CommandRequest;
 import com.rti.idl.RTI.RoutingService.Administration.CommandRequestTypeSupport;
@@ -37,6 +39,13 @@ public class RoutingServiceAdministrator {
 		this.hostAddress=hostAddress;
 		processId = ManagementFactory.getRuntimeMXBean().getName().split("@")[0];
 
+		//Get Default DomainParticipantQos
+		//DomainParticipantQos participant_qos= new DomainParticipantQos();
+		//DomainParticipantFactory.TheParticipantFactory.get_default_participant_qos(participant_qos);
+		
+		//set SHMEM based transport
+	      	//participant_qos.transport_builtin.mask = TransportBuiltinKind.SHMEM;
+		
 		// Create DomainParticipant
 		participant = DomainParticipantFactory.get_instance().create_participant(RS_ADMIN_DOMAIN_ID,
 				DomainParticipantFactory.PARTICIPANT_QOS_DEFAULT, null, StatusKind.STATUS_MASK_NONE);

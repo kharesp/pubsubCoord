@@ -16,8 +16,10 @@ import org.apache.curator.framework.recipes.barriers.DistributedBarrier;
 import org.apache.curator.retry.ExponentialBackoffRetry;
 import org.apache.curator.utils.CloseableUtils;
 import org.apache.log4j.Logger;
-import org.apache.zookeeper.CreateMode;
 
+import com.rti.dds.domain.DomainParticipantFactory;
+import com.rti.dds.domain.DomainParticipantQos;
+import com.rti.dds.infrastructure.TransportBuiltinKind;
 import com.rti.dds.subscription.SampleInfo;
 import com.rti.dds.subscription.Subscriber;
 import com.rti.dds.topic.Topic;
@@ -53,6 +55,7 @@ public class Monitor {
 	private GenericDataReader<SessionStatusSet> session_statusSet_reader;
 	
 	private String runId;
+	private String znode_path;
 	private CuratorFramework client;
 	private DistributedBarrier test_started_barrier;
 	private DistributedBarrier test_finished_barrier;
@@ -62,39 +65,42 @@ public class Monitor {
 		this.runId=runId;
 		logger= Logger.getLogger(this.getClass().getSimpleName());
 		monitoring= new AtomicBoolean(true);
-		String hostAddress="";
 		String processId= ManagementFactory.getRuntimeMXBean().getName().split("@")[0];
+		String hostName="";
 		try {
-			hostAddress = InetAddress.getLocalHost().getHostAddress();
+			hostName=InetAddress.getLocalHost().getHostName();
 		} catch (java.net.UnknownHostException e) {
 			System.out.println("Host address is not known");
 		}
-		logger.debug(String.format("Started monitoring Routing Service running on host:%s\n",hostAddress));
+		logger.debug(String.format("Started monitoring Routing Service running on host:%s\n",hostName));
+        znode_path=String.format("/experiment/%s/monitoring/%s/monitor_%s", runId,broker_type,hostName);
 		try {
 			new File(outdir+"/"+runId).mkdirs();
 			String rs_status_file= outdir+"/"+runId+"/"+
 					"routing_service_"+broker_type+"_"+
-					hostAddress+"_"+processId+".csv";
+					hostName+"_"+processId+".csv";
 			String domain_status_file= outdir+"/"+runId+"/"+
 					"domain_route_"+broker_type+"_"+
-					hostAddress+"_"+processId+".csv";
+					hostName+"_"+processId+".csv";
 			String session_status_file= outdir+"/"+runId+"/"+
 					"session_"+broker_type+"_"+
-					hostAddress+"_"+processId+".csv";
+					hostName+"_"+processId+".csv";
 			routingService_status_writer= new PrintWriter(rs_status_file,"UTF-8");
+			routingService_status_writer.write("ts,date,time,routing service,rs cpu(%),host cpu(%),rs phy mem(kb),host free mem(kb),host total mem(kb)\n");
 			domainRoute_status_writer= new PrintWriter(domain_status_file,"UTF-8");
+			domainRoute_status_writer.write("ts,date,time,routing service,domain route,input samples/sec,output samples/sec,latency(sec)\n");
 			session_status_writer= new PrintWriter(session_status_file,"UTF-8");
+			session_status_writer.write("ts,date,time,routing service,domain route,session route,input samples/sec,output samples/sec,latency(sec)\n");
 		} catch (FileNotFoundException | UnsupportedEncodingException e) {
 			e.printStackTrace();
 		}
 		client=CuratorFrameworkFactory.newClient(zkConnector, new ExponentialBackoffRetry(1000, 3));
 		client.start();
-		initialize();
+		initialize(broker_type);
 	}
 	
-	private void initialize() throws Exception{
-		client.create().withProtection().withMode(CreateMode.EPHEMERAL_SEQUENTIAL)
-				.forPath(String.format("/experiment/%s/monitoring/monitor", runId), new byte[0]);
+	private void initialize(String broker_type) throws Exception{
+		client.create().forPath(znode_path, new byte[0]);
 		test_started_barrier = new DistributedBarrier(client, String.format("/experiment/%s/barriers/pub", runId));
 		test_finished_barrier = new DistributedBarrier(client, String.format("/experiment/%s/barriers/finished", runId));
 
@@ -113,8 +119,15 @@ public class Monitor {
 		barrierMonitor.start();
 		
 		logger.debug("Initializing DDS entities for monitoring");
-		//create default participant
-		participant= new DefaultParticipant(MONITORING_DOMAIN_ID);
+		
+		//Get default participant qos
+		//DomainParticipantQos participant_qos= new DomainParticipantQos();
+		//DomainParticipantFactory.TheParticipantFactory.get_default_participant_qos(participant_qos);
+		//set SHMEM based transport
+	    	//participant_qos.transport_builtin.mask = TransportBuiltinKind.SHMEM;
+
+		
+	    	participant= new DefaultParticipant(MONITORING_DOMAIN_ID);
 		//Register Types
 		participant.registerType(RoutingServiceStatusSetTypeSupport.get_instance());
 		participant.registerType(DomainRouteStatusSetTypeSupport.get_instance());
@@ -173,29 +186,16 @@ public class Monitor {
 					@Override
 					public void process(SessionStatusSet sample,SampleInfo info) {
 					    long millis=System.currentTimeMillis();
-						String status=String.format("%d,%s,%s,%s,%s,%d,%f,%f,%f,%f,%d,%f,%f,%f,%f,%d,%f,%f,%f,%f\n",
+						String status=String.format("%d,%s,%s,%s,%s,%f,%f,%f\n",
 								millis,
 								sdf.format(new Date(millis)),
 								sample.routing_service_name,
 								sample.domain_route_name,
 								sample.name,
-								sample.input_samples_per_s.publication_period_metrics.period_ms,
-								sample.input_samples_per_s.publication_period_metrics.minimum,
 								sample.input_samples_per_s.publication_period_metrics.mean,
-								sample.input_samples_per_s.publication_period_metrics.maximum,
-								sample.input_samples_per_s.publication_period_metrics.std_dev,
-								sample.output_samples_per_s.publication_period_metrics.period_ms,
-								sample.output_samples_per_s.publication_period_metrics.minimum,
 								sample.output_samples_per_s.publication_period_metrics.mean,
-								sample.output_samples_per_s.publication_period_metrics.maximum,
-								sample.output_samples_per_s.publication_period_metrics.std_dev,
-								sample.latency_s.publication_period_metrics.period_ms,
-								sample.latency_s.publication_period_metrics.minimum,
-								sample.latency_s.publication_period_metrics.mean,
-								sample.latency_s.publication_period_metrics.maximum,
-								sample.latency_s.publication_period_metrics.std_dev
+								sample.latency_s.publication_period_metrics.mean
 								);
-						System.out.println(status);
 						session_status_writer.write(status);
 					}
 		};
@@ -212,6 +212,7 @@ public class Monitor {
 			while (monitoring.get()) {
 				Thread.sleep(1000);
 			}
+			client.delete().forPath(znode_path);
 		}catch(Exception e){
 			logger.error("Monitoring Interrupted");
 			e.printStackTrace();

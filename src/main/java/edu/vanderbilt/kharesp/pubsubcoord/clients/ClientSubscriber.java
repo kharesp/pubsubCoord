@@ -16,7 +16,6 @@ import com.rti.idl.test.DataSample_64BTypeSupport;
 import org.apache.curator.framework.CuratorFramework;
 import org.apache.curator.framework.CuratorFrameworkFactory;
 import org.apache.curator.retry.ExponentialBackoffRetry;
-import org.apache.zookeeper.CreateMode;
 import org.apache.curator.utils.CloseableUtils;
 
 public class ClientSubscriber {
@@ -24,6 +23,9 @@ public class ClientSubscriber {
 	private static PrintWriter writer;
 	private static int receiveCount = 0;
 	private static CuratorFramework client;
+	
+	private static String hostName;
+	private static String pid;
 
 	public static void main(String[] args) {
 		if (args.length < 7) {
@@ -43,11 +45,14 @@ public class ClientSubscriber {
 		client.start();
 
 		try {
-			String file_name = topicName + "_" + InetAddress.getLocalHost().getHostAddress() + "_"
-					+ ManagementFactory.getRuntimeMXBean().getName().split("@")[0] + ".csv";
+			hostName=InetAddress.getLocalHost().getHostName();
+			pid=ManagementFactory.getRuntimeMXBean().getName().split("@")[0];
+			String file_name = topicName + "_" + hostName + "_"
+					+pid + ".csv";
 			new File(outdir + "/" + runId).mkdirs();
 			latencyFile = outdir + "/" + runId + "/" + file_name;
 			writer = new PrintWriter(latencyFile, "UTF-8");
+			writer.write("ts,date,time,id,latency(ms),interarrival time(ms)\n");
 
 			if (typeName.equals("DataSample_64B")) {
 				receive_DataSample_64B(domainId, topicName, sampleCount,runId);
@@ -73,21 +78,26 @@ public class ClientSubscriber {
 			GenericDataReader<DataSample_64B> datareader = new GenericDataReader<DataSample_64B>(subscriber,
 					topic,DataSample_64BTypeSupport.get_instance()) {
 				private SimpleDateFormat sdf= new SimpleDateFormat("MM/dd/yyyy,HH:mm:ss");
+				private long prev_recv_ts=-1;
 				@Override
 				public void process(DataSample_64B sample,SampleInfo info) {
-					if (sample.sample_id == receiveCount)
-						receiveCount += 1;
+					receiveCount += 1;
 					long reception_ts = System.currentTimeMillis();
-					System.out.format("Received sample:%d at ts:%d. ts at which sample was sent:%d\n", sample.sample_id,
+					long interarrival_time=prev_recv_ts==-1?0:(reception_ts-prev_recv_ts);
+					prev_recv_ts=reception_ts;
+					if(receiveCount%500==0){
+						System.out.format("Received sample:%d at ts:%d. ts at which sample was sent:%d\n", sample.sample_id,
 							reception_ts, sample.ts_milisec);
-					long latency = reception_ts - sample.ts_milisec;
-					writer.write(String.format("%d,%s,%d,%d\n",reception_ts,sdf.format(new Date(reception_ts)),sample.sample_id, latency));
+					}
+					long latency = Math.abs(reception_ts - sample.ts_milisec);
+					writer.write(String.format("%d,%s,%d,%d,%d\n",reception_ts,sdf.format(new Date(reception_ts)),sample.sample_id, latency,interarrival_time));
 				}
 			};
-			client.create().withProtection().withMode(CreateMode.EPHEMERAL_SEQUENTIAL)
-				.forPath(String.format("/experiment/%s/sub/sub", runId), new byte[0]);
+			String client_path=String.format("/experiment/%s/sub/%s/%s_%s_%s", runId,hostName,topicName,hostName,pid);
+			client.create().forPath(client_path, new byte[0]);
 			datareader.receive();
 			wait_for_data(sampleCount);
+			client.delete().forPath(client_path);
 
 		} catch (Exception e) {
 			System.out.println(e.getMessage());
@@ -107,6 +117,7 @@ public class ClientSubscriber {
 				break;
 			}
 		}
+		System.out.println(String.format("Subscriber received:%d samples.Exiting..",receiveCount));
 		writer.close();
 	}
 }

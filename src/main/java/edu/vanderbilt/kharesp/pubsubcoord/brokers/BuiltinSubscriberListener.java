@@ -340,12 +340,12 @@ public class BuiltinSubscriberListener extends DataReaderAdapter {
                          "<history>" +
                          "<kind>KEEP_ALL_HISTORY_QOS</kind>" +
                          "</history>" +
-                         "<lifespan>" +
-                         "<duration>" +
-                         "<sec>300</sec>" +
-                         "<nanosec>0</nanosec>" +
-                         "</duration>" +
-                         "</lifespan>" +
+                         //"<lifespan>" +
+                         //"<duration>" +
+                         //"<sec>300</sec>" +
+                         //"<nanosec>0</nanosec>" +
+                         //"</duration>" +
+                         //"</lifespan>" +
                          "<user_data><value>" + TOPIC_ROUTE_CODE + "</value></user_data>" +
                          "</datawriter_qos>" +
                          "</output>" +

@@ -20,490 +20,536 @@ import org.apache.log4j.Logger;
 public class RoutingBroker {
 	private Logger logger;
 	// Domain Id in which Routing Brokers operate
-    public static final int WAN_DOMAIN_ID = 230;
-    // Public facing ports for interconnection of domains
-    public static final String RB_P1_BIND_PORT = "8500"; //only for receiving data 
-    public static final String RB_P2_BIND_PORT = "8501"; //only for sending data 
+	public static final int WAN_DOMAIN_ID = 230;
+	// Public facing ports for interconnection of domains
+	public static final String RB_P1_BIND_PORT = "8500"; // only for receiving
+															// data
+	public static final String RB_P2_BIND_PORT = "8501"; // only for sending
+															// data
 
-    //public facing port of local domains
-    public static final String EB_P2_BIND_PORT = "8502"; 
-    public static final String EB_P2_PUB_BIND_PORT="8502";
-    public static final String EB_P2_SUB_BIND_PORT="8503";
+	// public facing port of local domains
+	public static final String EB_P2_BIND_PORT = "8502";
+	public static final String EB_P2_PUB_BIND_PORT = "8502";
+	public static final String EB_P2_SUB_BIND_PORT = "8503";
 
-    private static final String DOMAIN_ROUTE_NAME_PREFIX = "RoutingBrokerDomainRoute";
-    private static final String TOPIC_ROUTE_CODE = "107"; //this means letter 'k'
+	private static final String DOMAIN_ROUTE_NAME_PREFIX = "RoutingBrokerDomainRoute";
+	private static final String TOPIC_ROUTE_CODE = "107"; // this means letter
+															// 'k'
 
-    private RoutingServiceAdministrator rs= null;
-    private String rbAddress;
-    private String domainRouteName;
+	private RoutingServiceAdministrator rs = null;
+	private String rbAddress;
+	private String domainRouteName;
 
-    private boolean emulated_broker;
-    private String zkConnector;
-    private CuratorFramework client = null;
+	private boolean emulated_broker;
+	private String zkConnector;
+	private CuratorFramework client = null;
 
-    // Curator node cache for this routing broker's znode under /routingBroker
-    private NodeCache rbNodeCache = null;
+	// Curator node cache for this routing broker's znode under /routingBroker
+	private NodeCache rbNodeCache = null;
 
-    // Curator path children cache for publishers of an assigned topic t under /topics/t/pub
-    private HashMap<String, PathChildrenCache> topic_publishersChildrenCache_map = new HashMap<String, PathChildrenCache>();
-    // Curator path children cache for subscribers of an assigned topic t under /topics/t/sub
-    private HashMap<String, PathChildrenCache> topic_subChildrenCache_map = new HashMap<String, PathChildrenCache>();
+	// Curator path children cache for publishers of an assigned topic t under
+	// /topics/t/pub
+	private HashMap<String, PathChildrenCache> topic_publishersChildrenCache_map = new HashMap<String, PathChildrenCache>();
+	// Curator path children cache for subscribers of an assigned topic t under
+	// /topics/t/sub
+	private HashMap<String, PathChildrenCache> topic_subChildrenCache_map = new HashMap<String, PathChildrenCache>();
 
-    // Map for keeping track of active topics in EB domains interfacing with RB_P1_BIND_PORT
-    private HashMap<String,HashSet<String>> p1_eb_topics_map=new HashMap<>();
-    // Map for keeping track of active topics in EB domains interfacing with RB_P2_BIND_PORT
-    private HashMap<String,HashSet<String>> p2_eb_topics_map=new HashMap<>();
-    
-    //Map for keeping track of active subscribing domains for a topic
-    private HashMap<String,Set<String>> topic_subscribingDomains= new HashMap<>();
-    private HashMap<String,Set<String>> topic_publishingDomains= new HashMap<>();
-    
-    // Used for managing topics assigned to this routing broker
-    private HashSet<String> subscribedTopics = new HashSet<String>();
-    private HashSet<String> publishedTopics = new HashSet<String>();
-    private HashSet<String> topicRoutesList = new HashSet<String>();
+	// Map for keeping track of active topics in EB domains interfacing with
+	// RB_P1_BIND_PORT
+	private HashMap<String, HashSet<String>> p1_eb_topics_map = new HashMap<>();
+	// Map for keeping track of active topics in EB domains interfacing with
+	// RB_P2_BIND_PORT
+	private HashMap<String, HashSet<String>> p2_eb_topics_map = new HashMap<>();
 
-    public RoutingBroker(String zkConnector,boolean emulated_broker) {
-    	//configure logger
-    	logger= LogManager.getLogger(this.getClass().getSimpleName());
-    	// ZK server address
-    	this.zkConnector=zkConnector;
-    	this.emulated_broker=emulated_broker;
-    	
-        try {
-            rbAddress= InetAddress.getLocalHost().getHostAddress();
-        } catch (java.net.UnknownHostException e) {
-            logger.error(e.getMessage(),e);
-        }
+	// Map for keeping track of active subscribing domains for a topic
+	private HashMap<String, Set<String>> topic_subscribingDomains = new HashMap<>();
+	private HashMap<String, Set<String>> topic_publishingDomains = new HashMap<>();
 
-    	logger.debug(String.format("Starting Routing Broker at:%s with ZK Connector:%s\n",
-    			rbAddress,zkConnector));
+	// Used for managing topics assigned to this routing broker
+	private HashSet<String> subscribedTopics = new HashSet<String>();
+	private HashSet<String> publishedTopics = new HashSet<String>();
+	private HashSet<String> topicRoutesList = new HashSet<String>();
 
-        // Create Routing Service remote administrator 
-        try {
-			rs=new RoutingServiceAdministrator(rbAddress);
-		} catch (Exception e) {
-            logger.error(e.getMessage(),e);
+	public RoutingBroker(String zkConnector, boolean emulated_broker) {
+		// configure logger
+		logger = LogManager.getLogger(this.getClass().getSimpleName());
+		// ZK server address
+		this.zkConnector = zkConnector;
+		this.emulated_broker = emulated_broker;
+
+		try {
+			rbAddress = InetAddress.getLocalHost().getHostAddress();
+		} catch (java.net.UnknownHostException e) {
+			logger.error(e.getMessage(), e);
 		}
-    }
 
-    public static void main(String args[]){
-    	if (args.length <2){
-    		System.out.println("Usage:  zk_address:zk_port, emulated_broker(0/1)");
-    		return;
-    	}
-    	PropertyConfigurator.configure("log4j.properties");
-    	String zkConnector=args[0];
-    	int emulated_broker=Integer.parseInt(args[1]);
-    	new RoutingBroker(zkConnector,emulated_broker>0?true:false).start();
-    }
+		logger.debug(String.format("Starting Routing Broker at:%s with ZK Connector:%s\n", rbAddress, zkConnector));
 
-    public void start(){
-    	// Create domain route between RB_P1_BIND_PORT and RB_P2_BIND_PORT
-    	domainRouteName=DOMAIN_ROUTE_NAME_PREFIX + "@"+ rbAddress;
-    	createDomainRoute();
+		// Create Routing Service remote administrator
+		try {
+			rs = new RoutingServiceAdministrator(rbAddress);
+		} catch (Exception e) {
+			logger.error(e.getMessage(), e);
+		}
+	}
 
-    	// Connect to ZK
-    	client = CuratorFrameworkFactory.newClient(zkConnector,
-                new ExponentialBackoffRetry(1000, 3));
-        client.start();
-        
-        try{
-        	// Ensure ZK paths /routingBroker /topics and /leader exists
-        	if(client.checkExists().forPath(CuratorHelper.ROUTING_BROKER_PATH) == null){
-        		logger.debug(String.format("zk path:%s does not exist. RB:%s will create zk path:%s\n",
-        				CuratorHelper.ROUTING_BROKER_PATH,rbAddress,CuratorHelper.ROUTING_BROKER_PATH));
-        		client.create().
-        			withMode(CreateMode.PERSISTENT).
-        			forPath(CuratorHelper.ROUTING_BROKER_PATH, new byte[0]);
-        	}
-        	if(client.checkExists().forPath(CuratorHelper.LEADER_PATH)== null){
-        		logger.debug(String.format("zk path:%s does not exist. RB:%s will create zk path:%s\n",
-        				CuratorHelper.LEADER_PATH,rbAddress,CuratorHelper.LEADER_PATH));
-        		client.create().
-        			withMode(CreateMode.PERSISTENT).
-        			forPath(CuratorHelper.LEADER_PATH, new byte[0]);
-        	}
-        	if(client.checkExists().forPath(CuratorHelper.TOPIC_PATH)== null){
-        		logger.debug(String.format("zk path:%s does not exist. RB:%s will create zk path:%s\n",
-        				CuratorHelper.TOPIC_PATH,rbAddress,CuratorHelper.TOPIC_PATH));
-        		client.create().
-        			withMode(CreateMode.PERSISTENT).
-        			forPath(CuratorHelper.TOPIC_PATH, new byte[0]);
-        	}
-        	// Create a NodeCache for this routing broker
-            rbNodeCache = new NodeCache(client, CuratorHelper.ROUTING_BROKER_PATH + "/" + rbAddress);
-            rbNodeCache.start();
-            // Install listner on this RB NodeCache to listen for topic assignments
-            addRbNodeListener(rbNodeCache);
+	public static void main(String args[]) {
+		if (args.length < 2) {
+			System.out.println("Usage:  zk_address:zk_port, emulated_broker(0/1)");
+			return;
+		}
+		PropertyConfigurator.configure("log4j.properties");
+		String zkConnector = args[0];
+		int emulated_broker = Integer.parseInt(args[1]);
+		new RoutingBroker(zkConnector, emulated_broker > 0 ? true : false).start();
+	}
 
-            // Create znode with ephemeral mode for this routing broker
-            logger.debug(String.format("Creating znode for this routing broker:%s\n", rbAddress));
-            HashSet<String> topicSet = new HashSet<String>();
-            client.create().
-            	withMode(CreateMode.EPHEMERAL).
-            	forPath(ZKPaths.makePath(CuratorHelper.ROUTING_BROKER_PATH, rbAddress), CuratorHelper.serialize(topicSet));
+	public void start() {
+		// Create domain route between RB_P1_BIND_PORT and RB_P2_BIND_PORT
+		domainRouteName = DOMAIN_ROUTE_NAME_PREFIX + "@" + rbAddress;
+		createDomainRoute();
 
-            // Create a thread for leader election and some work done by a leader
-            new Thread(new LeaderThread(client, rbAddress)).start();
+		// Connect to ZK
+		client = CuratorFrameworkFactory.newClient(zkConnector, new ExponentialBackoffRetry(1000, 3));
+		client.start();
 
-            while (true) {
-                Thread.sleep(1000);
-            }
-        }catch(Exception e){
-            logger.error(e.getMessage(),e);
-        }finally{
-        	CloseableUtils.closeQuietly(rbNodeCache);
-            CloseableUtils.closeQuietly(client);        	
-        }
+		try {
+			// Ensure ZK paths /routingBroker /topics and /leader exists
+			if (client.checkExists().forPath(CuratorHelper.ROUTING_BROKER_PATH) == null) {
+				logger.debug(String.format("zk path:%s does not exist. RB:%s will create zk path:%s\n",
+						CuratorHelper.ROUTING_BROKER_PATH, rbAddress, CuratorHelper.ROUTING_BROKER_PATH));
+				client.create().withMode(CreateMode.PERSISTENT).forPath(CuratorHelper.ROUTING_BROKER_PATH, new byte[0]);
+			}
+			if (client.checkExists().forPath(CuratorHelper.LEADER_PATH) == null) {
+				logger.debug(String.format("zk path:%s does not exist. RB:%s will create zk path:%s\n",
+						CuratorHelper.LEADER_PATH, rbAddress, CuratorHelper.LEADER_PATH));
+				client.create().withMode(CreateMode.PERSISTENT).forPath(CuratorHelper.LEADER_PATH, new byte[0]);
+			}
+			if (client.checkExists().forPath(CuratorHelper.TOPIC_PATH) == null) {
+				logger.debug(String.format("zk path:%s does not exist. RB:%s will create zk path:%s\n",
+						CuratorHelper.TOPIC_PATH, rbAddress, CuratorHelper.TOPIC_PATH));
+				client.create().withMode(CreateMode.PERSISTENT).forPath(CuratorHelper.TOPIC_PATH, new byte[0]);
+			}
+			// Create a NodeCache for this routing broker
+			rbNodeCache = new NodeCache(client, CuratorHelper.ROUTING_BROKER_PATH + "/" + rbAddress);
+			rbNodeCache.start();
+			// Install listner on this RB NodeCache to listen for topic
+			// assignments
+			addRbNodeListener(rbNodeCache);
 
-    }
-    
-    private void addRbNodeListener(final NodeCache cache) {
-        cache.getListenable().addListener(new NodeCacheListener() {
-            @Override
-            public void nodeChanged() throws Exception {
-                @SuppressWarnings("unchecked")
-                //Obtain updated set of topics assigned to this routing broker
-				HashSet<String> topicSet = (HashSet<String>) CuratorHelper.
-					deserialize(cache.getCurrentData().getData());
-                
-                logger.debug(String.format("Number of topics assigned to RB:%s is %d\n",
-                		rbAddress,topicSet.size()));
+			// Create znode with ephemeral mode for this routing broker
+			logger.debug(String.format("Creating znode for this routing broker:%s\n", rbAddress));
+			HashSet<String> topicSet = new HashSet<String>();
+			client.create().withMode(CreateMode.EPHEMERAL).forPath(
+					ZKPaths.makePath(CuratorHelper.ROUTING_BROKER_PATH, rbAddress), CuratorHelper.serialize(topicSet));
 
-                for (String topic : topicSet) {
-                	// For a new topic t, register path children listeners for /topics/t/pub and /topics/t/sub
-                    if (!topic_publishersChildrenCache_map.containsKey(topic)) {
-                    	logger.debug(String.format("RB:%s was assigned new topic:%s.\n "
-                    			+ "Installing listeners to be notified when publishers for topic:%s join\n",rbAddress,topic,topic));
-                        String publishersForTopicPath= CuratorHelper.TOPIC_PATH+ "/" + topic + "/pub";
-                        PathChildrenCache topicPubCache = new PathChildrenCache(client, publishersForTopicPath, true);
-                        topicPubCache.start();
-                        topic_publishersChildrenCache_map.put(topic, topicPubCache);
-                        addPubChildrenListener(topicPubCache);
-                    }
-                    if (!topic_subChildrenCache_map.containsKey(topic)) {
-                    	logger.debug(String.format("RB:%s was assigned new topic:%s.\n "
-                    			+ "Installing listeners to be notified when subscribers for topic:%s join\n",rbAddress,topic,topic));
-                        String subscribersForTopicPath = CuratorHelper.TOPIC_PATH+ "/" + topic + "/sub";
-                        PathChildrenCache topicSubCache = new PathChildrenCache(client, subscribersForTopicPath, true);
-                        topicSubCache.start();
-                        topic_subChildrenCache_map.put(topic, topicSubCache);
-                        addSubChildrenListener(topicSubCache);
-                    }
-                }
-            }
-        });
-    }
-    
-    private void addPubChildrenListener(PathChildrenCache cache) {
-        cache.getListenable().addListener(new PathChildrenCacheListener() {
-            @Override
-            public void childEvent(CuratorFramework client, PathChildrenCacheEvent event) throws Exception {
-                switch (event.getType()) {
-                    //When a new domain with publishers for topic t joins 
-                    case CHILD_ADDED: {
-                    	String eb_path=event.getData().getPath();
-                    	String topic= eb_path.split("/")[2];
-                    	PublicationBuiltinTopicData publication_builtin_data=
-                    			(PublicationBuiltinTopicData)CuratorHelper.deserialize(event.getData().getData());
-                    	String eb_address= eb_path.split("/")[4];
-                    	
-                    	//Add this publishing domain for this topic to topic_publishingDomains map
-                    	if(topic_publishingDomains.containsKey(topic)){
-                    		topic_publishingDomains.get(topic).add(eb_address);
-                    		
-                    	}else{
-                    		topic_publishingDomains.put(topic, new HashSet<String>(Arrays.asList(eb_address)));
-                    	}
-                    	String eb_locator;
-                    	if (emulated_broker){
-                    		eb_locator="tcpv4_wan://"+eb_address+":"+EB_P2_PUB_BIND_PORT;
-                    	}
-                    	else{
-                    		eb_locator="tcpv4_wan://"+eb_address+":"+EB_P2_BIND_PORT;
-                    	}
-                    	logger.debug(String.format("Publishers for topic:%s discovered in EB:%s domain\n",
-                    			topic,eb_address));
-                    	
-                    	if(!p1_eb_topics_map.containsKey(eb_address)){
-                    		p1_eb_topics_map.put(eb_address, new HashSet<String>());
-                    		p1_eb_topics_map.get(eb_address).add(topic);
-                    		logger.debug(String.format("Adding eb:%s as peer for RB_P1_BIND_PORT:%s\n",
-                    				eb_locator,RB_P1_BIND_PORT));
-                    		rs.addPeer(domainRouteName, eb_locator, true);
-                    		
-                    	}else{
-                    		logger.debug(String.format("eb:%s already exists as peer for RB_P1_BIND_PORT:%s\n", 
-                    				eb_locator,RB_P1_BIND_PORT));
-                    		p1_eb_topics_map.get(eb_address).add(topic);
-                    	}
+			// Create a thread for leader election and some work done by a
+			// leader
+			new Thread(new LeaderThread(client, rbAddress)).start();
 
-                        // if topic route is not created, it needs to be created
-                        if (!publishedTopics.contains(topic)) {
-                            publishedTopics.add(topic);
-                            //check if subscribers for this topic exist
-                            if(subscribedTopics.contains(topic)){
-                            	//Create topic route only if it does not already exist
-                            	if(!topicRoutesList.contains(topic)){
-                            		logger.debug(String.format("Both publishers and subscribers for topic:%s exist,"
-                            				+ " creating Topic Session for topic:%s\n",topic,topic));
-                            		//topic session is only created if publishers and subscribers exist in two different domains
-                            		Set<String> publishing_domains=topic_publishingDomains.get(topic);
-                            		Set<String> subscribing_domains=topic_subscribingDomains.get(topic);
-                            		if(!publishing_domains.containsAll(subscribing_domains)){
-                            			createTopicSession(publication_builtin_data.topic_name,
-                            				publication_builtin_data.type_name);
-                            		}
-                            		topicRoutesList.add(topic);
-                            	}
-                            }
-                        }
-                        break;
-                    }
-                    case CHILD_REMOVED: {
-                    	String eb_path=event.getData().getPath();
-                    	String topic= eb_path.split("/")[2];
-                    	String eb_address= eb_path.split("/")[4];
-                    	logger.debug(String.format("EB:%s was removed\n", eb_path));
-                    	
-                    	//eb_address domain no longer has any publisher for this topic. Remove it from topic_publishingDomains map
-                    	if(topic_publishingDomains.containsKey(topic)){
-                    		topic_publishingDomains.get(topic).remove(eb_address);
-                    	}
-                    	
-                    	PublicationBuiltinTopicData publication_builtin_topic_data= 
-                    			(PublicationBuiltinTopicData) CuratorHelper.deserialize(event.getData().getData());
+			while (true) {
+				Thread.sleep(1000);
+			}
+		} catch (Exception e) {
+			logger.error(e.getMessage(), e);
+		} finally {
+			CloseableUtils.closeQuietly(rbNodeCache);
+			CloseableUtils.closeQuietly(client);
+		}
 
-                    	PathChildrenCache topic_pub_children_cache= topic_publishersChildrenCache_map.get(topic);
-                    	topic_pub_children_cache.rebuild();
+	}
 
-                    	if(topic_pub_children_cache.getCurrentData().isEmpty()){
-                    		logger.debug(String.format("There are no publishing domains for topic:%s\n", topic));
-                    		publishedTopics.remove(topic);
-                    		if(topicRoutesList.contains(topic)){
-                    			topicRoutesList.remove(topic);
-                    			logger.debug(String.format("Publishing domains for topic:%s do not exist.\n"
-                    					+ "Removing topic session:%s\n",topic,String.format("%s::%sTopicSession",
-                    							domainRouteName,publication_builtin_topic_data.topic_name)));
-                    			rs.deleteTopicSession(String.format("%s::%sTopicSession",
-                    					domainRouteName,publication_builtin_topic_data.topic_name) );
-                    		}
-                    	}
-                    	
-                        break;
-                    }
+	private void addRbNodeListener(final NodeCache cache) {
+		cache.getListenable().addListener(new NodeCacheListener() {
+			@Override
+			public void nodeChanged() throws Exception {
+				@SuppressWarnings("unchecked")
+				// Obtain updated set of topics assigned to this routing broker
+				HashSet<String> topicSet = (HashSet<String>) CuratorHelper
+						.deserialize(cache.getCurrentData().getData());
+
+				logger.debug(String.format("Number of topics assigned to RB:%s is %d\n", rbAddress, topicSet.size()));
+
+				for (String topic : topicSet) {
+					// For a new topic t, register path children listeners for
+					// /topics/t/pub and /topics/t/sub
+					if (!topic_publishersChildrenCache_map.containsKey(topic)) {
+						logger.debug(String.format(
+								"RB:%s was assigned new topic:%s.\n "
+										+ "Installing listeners to be notified when publishers for topic:%s join\n",
+								rbAddress, topic, topic));
+						String publishersForTopicPath = CuratorHelper.TOPIC_PATH + "/" + topic + "/pub";
+						PathChildrenCache topicPubCache = new PathChildrenCache(client, publishersForTopicPath, true);
+						topicPubCache.start();
+						topic_publishersChildrenCache_map.put(topic, topicPubCache);
+						addPubChildrenListener(topicPubCache);
+					}
+					if (!topic_subChildrenCache_map.containsKey(topic)) {
+						logger.debug(String.format(
+								"RB:%s was assigned new topic:%s.\n "
+										+ "Installing listeners to be notified when subscribers for topic:%s join\n",
+								rbAddress, topic, topic));
+						String subscribersForTopicPath = CuratorHelper.TOPIC_PATH + "/" + topic + "/sub";
+						PathChildrenCache topicSubCache = new PathChildrenCache(client, subscribersForTopicPath, true);
+						topicSubCache.start();
+						topic_subChildrenCache_map.put(topic, topicSubCache);
+						addSubChildrenListener(topicSubCache);
+					}
+				}
+			}
+		});
+	}
+
+	private void addPubChildrenListener(PathChildrenCache cache) {
+		cache.getListenable().addListener(new PathChildrenCacheListener() {
+			@Override
+			public void childEvent(CuratorFramework client, PathChildrenCacheEvent event) throws Exception {
+				switch (event.getType()) {
+				// When a new domain with publishers for topic t joins
+				case CHILD_ADDED: {
+					String eb_path = event.getData().getPath();
+					String topic = eb_path.split("/")[2];
+					PublicationBuiltinTopicData publication_builtin_data = (PublicationBuiltinTopicData) CuratorHelper
+							.deserialize(event.getData().getData());
+					String eb_address = eb_path.split("/")[4];
+
+					// Add this publishing domain for this topic to
+					// topic_publishingDomains map
+					if (topic_publishingDomains.containsKey(topic)) {
+						topic_publishingDomains.get(topic).add(eb_address);
+
+					} else {
+						topic_publishingDomains.put(topic, new HashSet<String>(Arrays.asList(eb_address)));
+					}
+					String eb_locator;
+					if (emulated_broker) {
+						eb_locator = "tcpv4_wan://" + eb_address + ":" + EB_P2_PUB_BIND_PORT;
+					} else {
+						eb_locator = "tcpv4_wan://" + eb_address + ":" + EB_P2_BIND_PORT;
+					}
+					logger.debug(
+							String.format("Publishers for topic:%s discovered in EB:%s domain\n", topic, eb_address));
+
+					if (!p1_eb_topics_map.containsKey(eb_address)) {
+						p1_eb_topics_map.put(eb_address, new HashSet<String>());
+						p1_eb_topics_map.get(eb_address).add(topic);
+						logger.debug(String.format("Adding eb:%s as peer for RB_P1_BIND_PORT:%s\n", eb_locator,
+								RB_P1_BIND_PORT));
+						rs.addPeer(domainRouteName, eb_locator, true);
+
+					} else {
+						logger.debug(String.format("eb:%s already exists as peer for RB_P1_BIND_PORT:%s\n", eb_locator,
+								RB_P1_BIND_PORT));
+						p1_eb_topics_map.get(eb_address).add(topic);
+					}
+
+					// if topic route is not created, it needs to be created
+					if (!publishedTopics.contains(topic)) {
+						publishedTopics.add(topic);
+					}
+					// check if subscribers for this topic exist
+					if (subscribedTopics.contains(topic)) {
+						// Create topic route only if it does not already
+						// exist
+						if (!topicRoutesList.contains(topic)) {
+							// topic session is only created if publishers
+							// and subscribers exist in two different
+							// domains
+							Set<String> publishing_domains = topic_publishingDomains.get(topic);
+							Set<String> subscribing_domains = topic_subscribingDomains.get(topic);
+							if (publishing_domains.size() == 1 && subscribing_domains.size() == 1
+									&& publishing_domains.containsAll(subscribing_domains)) {
+								logger.debug(String.format("Publishers and Subscribers for topic:%s exist in same domain. "
+										+ "Will not create topic session.\n",topic));
+							} else {
+								logger.debug(String
+										.format("Both publishers and subscribers for topic:%s exist in distinct domains,"
+												+ " creating Topic Session for topic:%s\n", topic, topic));
+								createTopicSession(publication_builtin_data.topic_name,
+										publication_builtin_data.type_name);
+								topicRoutesList.add(topic);
+							}
+						}
+					}
+					break;
+				}
+				case CHILD_REMOVED: {
+					String eb_path = event.getData().getPath();
+					String topic = eb_path.split("/")[2];
+					String eb_address = eb_path.split("/")[4];
+					logger.debug(String.format("EB:%s was removed\n", eb_path));
+
+					// eb_address domain no longer has any publisher for this
+					// topic. Remove it from topic_publishingDomains map
+					if (topic_publishingDomains.containsKey(topic)) {
+						topic_publishingDomains.get(topic).remove(eb_address);
+					}
+
+					PublicationBuiltinTopicData publication_builtin_topic_data = (PublicationBuiltinTopicData) CuratorHelper
+							.deserialize(event.getData().getData());
+
+					PathChildrenCache topic_pub_children_cache = topic_publishersChildrenCache_map.get(topic);
+					topic_pub_children_cache.rebuild();
+
+					if (topic_pub_children_cache.getCurrentData().isEmpty()) {
+						logger.debug(String.format("There are no publishing domains for topic:%s\n", topic));
+						publishedTopics.remove(topic);
+						if (topicRoutesList.contains(topic)) {
+							topicRoutesList.remove(topic);
+							logger.debug(String.format(
+									"Publishing domains for topic:%s do not exist.\n" + "Removing topic session:%s\n",
+									topic, String.format("%s::%sTopicSession", domainRouteName,
+											publication_builtin_topic_data.topic_name)));
+							rs.deleteTopicSession(String.format("%s::%sTopicSession", domainRouteName,
+									publication_builtin_topic_data.topic_name));
+						}
+					}
+
+					break;
+				}
 				default:
 					break;
-                }
-            }
-        });
-    }
-    
-    private void addSubChildrenListener(PathChildrenCache cache) {
-        cache.getListenable().addListener(new PathChildrenCacheListener() {
-            @Override
-            public void childEvent(CuratorFramework client, PathChildrenCacheEvent event) throws Exception {
-                switch (event.getType()) {
-                    // When a local domain with subscribers for topic t is discovered 
-                    case CHILD_ADDED: {
-                    	String eb_path=event.getData().getPath();
-                    	String topic= eb_path.split("/")[2];
-                    	SubscriptionBuiltinTopicData subscription_builtin_data=
-                    			(SubscriptionBuiltinTopicData)(CuratorHelper.deserialize(event.getData().getData()));
-                    	String eb_address= eb_path.split("/")[4];
-                    	
-                    	//Add this subscribing domain for this topic to topic_subscribingDomains map
-                    	if(topic_subscribingDomains.containsKey(topic)){
-                    		topic_subscribingDomains.get(topic).add(eb_address);
-                    	}else{
-                    		topic_subscribingDomains.put(topic, new HashSet<String>(Arrays.asList(eb_address)));
-                    	}
-                    	
-                    	
-                    	String eb_locator;
-                    	if(emulated_broker){
-                    		eb_locator="tcpv4_wan://"+eb_address+":"+EB_P2_SUB_BIND_PORT;
-                    	}
-                    	else{
-                    		eb_locator="tcpv4_wan://"+eb_address+":"+EB_P2_BIND_PORT;
-                    	}
+				}
+			}
+		});
+	}
 
-                    	logger.debug(String.format("Subscriber for topic:%s discovered in EB:%s domain\n",
-                    			topic,eb_address));
-                    	
-                    	if(!p2_eb_topics_map.containsKey(eb_address)){
-                    		p2_eb_topics_map.put(eb_address, new HashSet<String>());
-                    		p2_eb_topics_map.get(eb_address).add(topic);
-                    		logger.debug(String.format("Adding eb:%s as peer for RB_P2_BIND_PORT:%s\n",
-                    				eb_locator,RB_P2_BIND_PORT));
-                    		rs.addPeer(domainRouteName, eb_locator, false);
-                    		
-                    	}else{
-                    		logger.debug(String.format("eb:%s already exists as peer for RB_P2_BIND_PORT:%s\n", 
-                    				eb_locator,RB_P2_BIND_PORT));
-                    		p2_eb_topics_map.get(eb_address).add(topic);
-                    	}
+	private void addSubChildrenListener(PathChildrenCache cache) {
+		cache.getListenable().addListener(new PathChildrenCacheListener() {
+			@Override
+			public void childEvent(CuratorFramework client, PathChildrenCacheEvent event) throws Exception {
+				switch (event.getType()) {
+				// When a local domain with subscribers for topic t is
+				// discovered
+				case CHILD_ADDED: {
+					String eb_path = event.getData().getPath();
+					String topic = eb_path.split("/")[2];
+					SubscriptionBuiltinTopicData subscription_builtin_data = (SubscriptionBuiltinTopicData) (CuratorHelper
+							.deserialize(event.getData().getData()));
+					String eb_address = eb_path.split("/")[4];
 
-                        // if topic route is not created, it needs to be created
-                        if (!subscribedTopics.contains(topic)) {
-                            subscribedTopics.add(topic);
-                            //check if publishers for this topic exist
-                            if(publishedTopics.contains(topic)){
-                            	//Create topic route only if it does not already exist
-                            	if(!topicRoutesList.contains(topic)){
-                            		logger.debug(String.format("Both publishers and subscribers for topic:%s exist,"
-                            				+ " creating Topic Session for topic:%s\n",topic,topic));
-                            		//topic route is only created if publishers and subscribers exist in two different domains
-                            		Set<String> publishing_domains=topic_publishingDomains.get(topic);
-                            		Set<String> subscribing_domains=topic_subscribingDomains.get(topic);
-                            		if(!publishing_domains.containsAll(subscribing_domains)){
-                            			createTopicSession(subscription_builtin_data.topic_name,
-                            				subscription_builtin_data.type_name);
-                            		}
-                            		topicRoutesList.add(topic);
-                            	}
-                            }
-                        }
-                        break;
-                    }
-                    case CHILD_REMOVED: {
-                    	String eb_path=event.getData().getPath();
-                    	String topic= eb_path.split("/")[2];
-                    	String eb_address= eb_path.split("/")[4];
+					// Add this subscribing domain for this topic to
+					// topic_subscribingDomains map
+					if (topic_subscribingDomains.containsKey(topic)) {
+						topic_subscribingDomains.get(topic).add(eb_address);
+					} else {
+						topic_subscribingDomains.put(topic, new HashSet<String>(Arrays.asList(eb_address)));
+					}
 
-                    	logger.debug(String.format("EB:%s was removed\n", eb_path));
-                    	
-                    	//eb_address domain no longer has any subscriber for this topic. Remove it from topic_subscribingDomains map
-                    	if(topic_subscribingDomains.containsKey(topic)){
-                    		topic_subscribingDomains.get(topic).remove(eb_address);
-                    	}
-                    	
-                    	SubscriptionBuiltinTopicData subscription_builtin_topic_data=
-                    			(SubscriptionBuiltinTopicData) CuratorHelper.deserialize(event.getData().getData());
+					String eb_locator;
+					if (emulated_broker) {
+						eb_locator = "tcpv4_wan://" + eb_address + ":" + EB_P2_SUB_BIND_PORT;
+					} else {
+						eb_locator = "tcpv4_wan://" + eb_address + ":" + EB_P2_BIND_PORT;
+					}
 
-                    	PathChildrenCache topic_sub_children_cache= topic_subChildrenCache_map.get(topic);
-                    	topic_sub_children_cache.rebuild();
+					logger.debug(
+							String.format("Subscriber for topic:%s discovered in EB:%s domain\n", topic, eb_address));
 
-                    	if(topic_sub_children_cache.getCurrentData().isEmpty()){
-                    		logger.debug(String.format("There are no subscribing domains for topic:%s\n", topic));
-                    		subscribedTopics.remove(topic);
-                    		if(topicRoutesList.contains(topic)){
-                    			topicRoutesList.remove(topic);
-                    			logger.debug(String.format("Subscribing domains for topic:%s do not exist.\n"
-                    					+ "Removing topic session:%s\n",topic,String.format("%s::%sTopicSession",
-                    							domainRouteName,subscription_builtin_topic_data.topic_name)));
-                    			rs.deleteTopicSession(String.format("%s::%sTopicSession",
-                    					domainRouteName,subscription_builtin_topic_data.topic_name) );
-                    		}
-                    	}
-                        break;
-                    }
+					if (!p2_eb_topics_map.containsKey(eb_address)) {
+						p2_eb_topics_map.put(eb_address, new HashSet<String>());
+						p2_eb_topics_map.get(eb_address).add(topic);
+						logger.debug(String.format("Adding eb:%s as peer for RB_P2_BIND_PORT:%s\n", eb_locator,
+								RB_P2_BIND_PORT));
+						rs.addPeer(domainRouteName, eb_locator, false);
+
+					} else {
+						logger.debug(String.format("eb:%s already exists as peer for RB_P2_BIND_PORT:%s\n", eb_locator,
+								RB_P2_BIND_PORT));
+						p2_eb_topics_map.get(eb_address).add(topic);
+					}
+
+					if (!subscribedTopics.contains(topic)) {
+						subscribedTopics.add(topic);
+					}
+					// check if publishers for this topic exist
+					if (publishedTopics.contains(topic)) {
+						// Create topic route only if it does not already exist
+						if (!topicRoutesList.contains(topic)) {
+							// topic route is only created if publishers and
+							// subscribers exist in two different domains
+							Set<String> publishing_domains = topic_publishingDomains.get(topic);
+							Set<String> subscribing_domains = topic_subscribingDomains.get(topic);
+
+							if (publishing_domains.size() == 1 && subscribing_domains.size() == 1
+									&& publishing_domains.containsAll(subscribing_domains)) {
+								logger.debug(String.format("Publishers and Subscribers for topic:%s exist in same domain. "
+										+ "Will not create topic session.\n",topic));
+							} else {
+								logger.debug(String
+										.format("Both publishers and subscribers for topic:%s exist in distinct domains,"
+												+ " creating Topic Session for topic:%s\n", topic, topic));
+								createTopicSession(subscription_builtin_data.topic_name,
+										subscription_builtin_data.type_name);
+								topicRoutesList.add(topic);
+							}
+						}
+					}
+					break;
+				}
+				case CHILD_REMOVED: {
+					String eb_path = event.getData().getPath();
+					String topic = eb_path.split("/")[2];
+					String eb_address = eb_path.split("/")[4];
+
+					logger.debug(String.format("EB:%s was removed\n", eb_path));
+
+					// eb_address domain no longer has any subscriber for this
+					// topic. Remove it from topic_subscribingDomains map
+					if (topic_subscribingDomains.containsKey(topic)) {
+						topic_subscribingDomains.get(topic).remove(eb_address);
+					}
+
+					SubscriptionBuiltinTopicData subscription_builtin_topic_data = (SubscriptionBuiltinTopicData) CuratorHelper
+							.deserialize(event.getData().getData());
+
+					PathChildrenCache topic_sub_children_cache = topic_subChildrenCache_map.get(topic);
+					topic_sub_children_cache.rebuild();
+
+					if (topic_sub_children_cache.getCurrentData().isEmpty()) {
+						logger.debug(String.format("There are no subscribing domains for topic:%s\n", topic));
+						subscribedTopics.remove(topic);
+						if (topicRoutesList.contains(topic)) {
+							topicRoutesList.remove(topic);
+							logger.debug(String.format(
+									"Subscribing domains for topic:%s do not exist.\n" + "Removing topic session:%s\n",
+									topic, String.format("%s::%sTopicSession", domainRouteName,
+											subscription_builtin_topic_data.topic_name)));
+							rs.deleteTopicSession(String.format("%s::%sTopicSession", domainRouteName,
+									subscription_builtin_topic_data.topic_name));
+						}
+					}
+					break;
+				}
 				default:
 					break;
-                }
-            }
-        });
-    }
-    
-    private void createDomainRoute(){
-    	logger.debug(String.format("Creating domain route:%s for interconnecting domains between:%s and %s",
-    			domainRouteName,RB_P1_BIND_PORT,RB_P2_BIND_PORT));
+				}
+			}
+		});
+	}
 
-    	rs.createDomainRoute("str://\"<domain_route name=\"" + domainRouteName + "\">" +
-                         "<entity_monitoring>" +
-                         "<historical_statistics><up_time>true</up_time></historical_statistics>" +
-                         "</entity_monitoring>" +
-                         "<participant_1>" +
-                         "<domain_id>" + WAN_DOMAIN_ID + "</domain_id>" +
-                         "<participant_qos>" +
-                         "<transport_builtin><mask>MASK_NONE</mask></transport_builtin>" +
-                         "<property><value>" +
-                         "<element><name>dds.transport.load_plugins</name><value>dds.transport.TCPv4.tcp1</value></element>" +
-                         "<element><name>dds.transport.TCPv4.tcp1.library</name><value>nddstransporttcp</value></element>" +
-                         "<element><name>dds.transport.TCPv4.tcp1.create_function</name><value>NDDS_Transport_TCPv4_create</value></element>" +
-                         "<element><name>dds.transport.TCPv4.tcp1.parent.classid</name><value>NDDS_TRANSPORT_CLASSID_TCPV4_WAN</value></element>" +
-                         "<element><name>dds.transport.TCPv4.tcp1.public_address</name><value>" +
-                         rbAddress + ":" + RB_P1_BIND_PORT +
-                         "</value></element>" +
-                         "<element><name>dds.transport.TCPv4.tcp1.server_bind_port</name><value>" +
-                         RB_P1_BIND_PORT + "</value></element>" +
-                         "</value></property>" +
-                         "</participant_qos>" +
-                         "</participant_1>" +
-                         "<participant_2>" +
-                         "<domain_id>" + WAN_DOMAIN_ID + "</domain_id>" +
-                         "<participant_qos>" +
-                         "<transport_builtin><mask>MASK_NONE</mask></transport_builtin>" +
-                         "<property><value>" +
-                         "<element><name>dds.transport.load_plugins</name><value>dds.transport.TCPv4.tcp1</value></element>" +
-                         "<element><name>dds.transport.TCPv4.tcp1.library</name><value>nddstransporttcp</value></element>" +
-                         "<element><name>dds.transport.TCPv4.tcp1.create_function</name><value>NDDS_Transport_TCPv4_create</value></element>" +
-                         "<element><name>dds.transport.TCPv4.tcp1.parent.classid</name><value>NDDS_TRANSPORT_CLASSID_TCPV4_WAN</value></element>" +
-                         "<element><name>dds.transport.TCPv4.tcp1.public_address</name><value>" +
-                         rbAddress + ":" + RB_P2_BIND_PORT +
-                         "</value></element>" +
-                         "<element><name>dds.transport.TCPv4.tcp1.server_bind_port</name><value>" +
-                         RB_P2_BIND_PORT +
-                         "</value></element>" +
-                         "</value></property>" +
-                         "</participant_qos>" +
-                         "</participant_2>" +
-                         "</domain_route>\"");
-    }
-    
-    private void createTopicSession(String topic_name,String type_name) {
-    	logger.debug(String.format("Creating Topic Session for topic:%s\n",topic_name ));
+	private void createDomainRoute() {
+		logger.debug(String.format("Creating domain route:%s for interconnecting domains between:%s and %s",
+				domainRouteName, RB_P1_BIND_PORT, RB_P2_BIND_PORT));
 
-    	rs.createTopicSession(domainRouteName,
-    			  "str://\"<session name=\"" + topic_name + "TopicSession\">" +
-                          "<topic_route name=\"" + topic_name + "TopicRoute\">" +
-                          "<route_types>true</route_types>" +
-                          "<publish_with_original_info>true</publish_with_original_info>" +
-                          "<publish_with_original_timestamp>true</publish_with_original_timestamp>" +
-                          "<input participant=\"1\">" +
-                          "<topic_name>" + topic_name + "</topic_name>" +
-                          "<registered_type_name>" + type_name + "</registered_type_name>" +
-                          "<creation_mode>IMMEDIATE</creation_mode>" +
-                          "<datareader_qos>" +
-                          "<reliability>" +
-                          "<kind>RELIABLE_RELIABILITY_QOS</kind>" +
-                          "</reliability>" +
-                          "<durability>" +
-                          "<kind>TRANSIENT_LOCAL_DURABILITY_QOS</kind>" +
-                          "</durability>" +
-                          "<history>" +
-                          "<kind>KEEP_ALL_HISTORY_QOS</kind>" +
-                          "</history>" +
-                          "<user_data><value>" + TOPIC_ROUTE_CODE + "</value></user_data>" +
-                          "</datareader_qos>" +
-                          "</input>" +
-                          "<output>" +
-                          "<topic_name>" + topic_name + "</topic_name>" +
-                          "<registered_type_name>" + type_name + "</registered_type_name>" +
-                          "<creation_mode>IMMEDIATE</creation_mode>" +
-                          "<datawriter_qos>" +
-                          "<reliability>" +
-                          "<kind>RELIABLE_RELIABILITY_QOS</kind>" +
-                          "</reliability>" +
-                          "<durability>" +
-                          "<kind>TRANSIENT_LOCAL_DURABILITY_QOS</kind>" +
-                          "</durability>" +
-                          "<history>" +
-                          "<kind>KEEP_ALL_HISTORY_QOS</kind>" +
-                          "</history>" +
-                          "<lifespan>" +
-                          "<duration>" +
-                          "<sec>300</sec>" +
-                          "<nanosec>0</nanosec>" +
-                          "</duration>" +
-                          "</lifespan>" +
-                          "<user_data><value>" + TOPIC_ROUTE_CODE + "</value></user_data>" +
-                          "</datawriter_qos>" +
-                          "</output>" +
-                          "</topic_route>" +
-                          "</session>\"");
-    }
+		rs.createDomainRoute("str://\"<domain_route name=\"" + domainRouteName + "\">"
+				+ "<entity_monitoring>"
+				+ "<historical_statistics><up_time>true</up_time></historical_statistics>" 
+				+ "</entity_monitoring>"
+				+ "<participant_1>" 
+				+ "<domain_id>" + WAN_DOMAIN_ID 
+				+ "</domain_id>"
+				+ "<participant_qos>"
+				+ "<database>"
+				+ "<cleanup_period>"
+				+ "<sec>1</sec>"
+				+ "</cleanup_period>"
+				+ "</database>"
+				+ "<transport_builtin><mask>MASK_NONE</mask></transport_builtin>" 
+				+ "<property><value>"
+				+ "<element><name>dds.transport.load_plugins</name><value>dds.transport.TCPv4.tcp1</value></element>"
+				+ "<element><name>dds.transport.TCPv4.tcp1.library</name><value>nddstransporttcp</value></element>"
+				+ "<element><name>dds.transport.TCPv4.tcp1.create_function</name><value>NDDS_Transport_TCPv4_create</value></element>"
+				+ "<element><name>dds.transport.TCPv4.tcp1.parent.classid</name><value>NDDS_TRANSPORT_CLASSID_TCPV4_WAN</value></element>"
+				+ "<element><name>dds.transport.TCPv4.tcp1.public_address</name><value>" 
+				+ rbAddress + ":"+ RB_P1_BIND_PORT 
+				+ "</value></element>"
+				+ "<element><name>dds.transport.TCPv4.tcp1.server_bind_port</name><value>"
+				+ RB_P1_BIND_PORT
+				+ "</value></element>"
+				+ "</value></property>"
+				+ "</participant_qos>"
+				+ "</participant_1>"
+				+ "<participant_2>"
+				+ "<domain_id>" 
+				+ WAN_DOMAIN_ID 
+				+ "</domain_id>" 
+				+ "<participant_qos>"
+				+ "<database>"
+				+ "<cleanup_period>"
+				+ "<sec>1</sec>"
+				+ "</cleanup_period>"
+				+ "</database>"
+				+ "<transport_builtin><mask>MASK_NONE</mask></transport_builtin>"
+				+ "<property><value>"
+				+ "<element><name>dds.transport.load_plugins</name><value>dds.transport.TCPv4.tcp1</value></element>"
+				+ "<element><name>dds.transport.TCPv4.tcp1.library</name><value>nddstransporttcp</value></element>"
+				+ "<element><name>dds.transport.TCPv4.tcp1.create_function</name><value>NDDS_Transport_TCPv4_create</value></element>"
+				+ "<element><name>dds.transport.TCPv4.tcp1.parent.classid</name><value>NDDS_TRANSPORT_CLASSID_TCPV4_WAN</value></element>"
+				+ "<element><name>dds.transport.TCPv4.tcp1.public_address</name><value>"
+				+ rbAddress + ":"+ RB_P2_BIND_PORT
+				+ "</value></element>"
+				+ "<element><name>dds.transport.TCPv4.tcp1.server_bind_port</name><value>" 
+				+ RB_P2_BIND_PORT
+				+ "</value></element>" 
+				+ "</value></property>"
+				+ "</participant_qos>"
+				+ "</participant_2>"
+				+ "</domain_route>\"");
+	}
 
+	private void createTopicSession(String topic_name, String type_name) {
+		logger.debug(String.format("Creating Topic Session for topic:%s\n", topic_name));
+
+		rs.createTopicSession(domainRouteName, 
+				"str://\"<session name=\"" + topic_name + "TopicSession\">"
+				+ "<topic_route name=\"" + topic_name + "TopicRoute\">"
+				+ "<route_types>true</route_types>"
+				+ "<publish_with_original_info>true</publish_with_original_info>"
+				+ "<publish_with_original_timestamp>true</publish_with_original_timestamp>"
+				+ "<input participant=\"1\">"
+				+ "<topic_name>" + topic_name 
+				+ "</topic_name>" 
+				+ "<registered_type_name>"
+				+ type_name 
+				+ "</registered_type_name>"
+				+ "<creation_mode>IMMEDIATE</creation_mode>"
+				+ "<datareader_qos>"
+				+ "<reliability>"
+				+ "<kind>RELIABLE_RELIABILITY_QOS</kind>"
+				+ "</reliability>"
+				+ "<durability>" 
+				+ "<kind>TRANSIENT_LOCAL_DURABILITY_QOS</kind>"
+				+ "</durability>"
+				+ "<history>"
+				+ "<kind>KEEP_ALL_HISTORY_QOS</kind>"
+				+ "</history>"
+				+ "<user_data><value>" 
+				+ TOPIC_ROUTE_CODE
+				+ "</value></user_data>" 
+				+ "</datareader_qos>" 
+				+ "</input>"
+				+ "<output>"
+				+ "<topic_name>"
+				+ topic_name
+				+ "</topic_name>" 
+				+ "<registered_type_name>"
+				+ type_name 
+				+ "</registered_type_name>"
+				+ "<creation_mode>IMMEDIATE</creation_mode>"
+				+ "<datawriter_qos>"
+				+ "<reliability>"
+				+ "<kind>RELIABLE_RELIABILITY_QOS</kind>"
+				+ "</reliability>"
+				+ "<durability>"
+				+ "<kind>TRANSIENT_LOCAL_DURABILITY_QOS</kind>" 
+				+ "</durability>"
+				+ "<history>"
+				+ "<kind>KEEP_ALL_HISTORY_QOS</kind>"
+				+ "</history>"
+				//+ "<lifespan>"
+				//+ "<duration>"
+				//+ "<sec>300</sec>"
+				//+ "<nanosec>0</nanosec>" 
+				//+ "</duration>" 
+				//+ "</lifespan>"
+				+ "<user_data><value>"
+				+ TOPIC_ROUTE_CODE
+				+ "</value></user_data>"
+				+ "</datawriter_qos>"
+				+ "</output>"
+				+ "</topic_route>" 
+				+ "</session>\"");
+	}
 
 }
