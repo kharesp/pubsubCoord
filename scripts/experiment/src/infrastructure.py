@@ -63,9 +63,9 @@ class Infrastructure(object):
 
   def setup_infrastructure(self):
     #clean shmem resources on routing brokers
-    command_string='cd %s && ansible-playbook playbooks/experiment/shmem.yml  --limit %s'%\
-      (metadata.ansible,','.join(self.conf.rbs))
-    subprocess.check_call(['bash','-c',command_string])
+    #command_string='cd %s && ansible-playbook playbooks/experiment/shmem.yml  --limit %s'%\
+    #  (metadata.ansible,','.join(self.conf.rbs))
+    #subprocess.check_call(['bash','-c',command_string])
 
     #disable multicast on routing brokers
     command_string='cd %s && ansible-playbook playbooks/experiment/disable_multicast.yml  --limit %s'%\

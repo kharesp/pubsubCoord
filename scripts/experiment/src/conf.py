@@ -47,6 +47,23 @@ class Conf(object):
           print('invalid line:%s'%(line))
     self.brokers= ','.join(self.ebs)+','+','.join(self.rbs)
     self.hosts=self.brokers+','+','.join(self.clients)
+    self.region_clientsubscribers_map={}
+    for client in self.subscribers.keys():
+      region=client[3:client.index('-')]
+      if region in self.region_clientsubscribers_map:
+        self.region_clientsubscribers_map[region]+=1
+      else:
+        self.region_clientsubscribers_map[region]=1
+
+    self.region_clientpublishers_map={}
+    for client in self.publishers.keys():
+      region=client[3:client.index('-')]
+      if region in self.region_clientpublishers_map:
+        self.region_clientpublishers_map[region]+=1
+      else:
+        self.region_clientpublishers_map[region]=1
+      
+      
     self.client_numSubscribers={ client: sum([int(num_sub) for num_sub in topics.values()]) for client,topics in self.subscribers.items() }
     self.client_numPublishers={ client: sum([int(num_pub) for num_pub in topics.values()]) for client,topics in self.publishers.items() }
 

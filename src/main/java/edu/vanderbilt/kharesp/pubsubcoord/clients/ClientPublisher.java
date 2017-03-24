@@ -19,6 +19,7 @@ public class ClientPublisher {
 	private static DistributedBarrier barrier;
 	private static DistributedBarrier sub_exited_barrier;
 	private static String hostName;
+	private static String region;
 	private static String pid;
 
 	public static void main(String[] args) {
@@ -40,6 +41,7 @@ public class ClientPublisher {
 		try {
 			
 			hostName=InetAddress.getLocalHost().getHostName();
+			region=hostName.substring(hostName.indexOf('i')+1, hostName.indexOf('-'));
 			pid=ManagementFactory.getRuntimeMXBean().getName().split("@")[0];
 			
 			barrier = new DistributedBarrier(client, String.format("/experiment/%s/barriers/pub", runId));
@@ -73,7 +75,7 @@ public class ClientPublisher {
 			Topic topic=participant.create_topic(topicName, DataSample_64BTypeSupport.get_instance());
 			Publisher publisher = participant.get_default_publisher();
 			GenericDataWriter<DataSample_64B> datawriter = new GenericDataWriter<DataSample_64B>(publisher,topic); 
-			String client_path=String.format("/experiment/%s/pub/%s/%s_%s_%s", runId,hostName,topicName,hostName,pid);
+			String client_path=String.format("/experiment/%s/pub/region_%s/%s/%s_%s_%s", runId,region,hostName,topicName,hostName,pid);
 			client.create().forPath(client_path, new byte[0]);
 			//wait before all publishers have joined to begin publishing
 			barrier.waitOnBarrier();

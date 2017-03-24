@@ -150,6 +150,12 @@ class Experiment(object):
     #    (metadata.ansible,host,str(topic_count_map).replace(" ",""),self.conf.sample_count,self.conf.sleep_interval,self.run_id)
     #  subprocess.Popen(['bash','-c',command_string],shell=False,stdout=None,stdin=None,stderr=None,close_fds=True)
 
+  def start_remaining_publishers(self,region):
+    pairs={'cli%d-%d'%(region,i+1):self.conf.publishers['cli%d-%d'%(region,i+1)] for\
+      i in range(10)} 
+    rep=json.dumps(pairs)
+    subprocess.check_call(['python','src/start_publishers.py',rep,str(self.conf.pub_sample_count),str(self.conf.sleep_interval),self.run_id])
+
   def collect_logs(self):
     #ensure local log directory exists
     log_dir='%s/logs/%s'%(metadata.ansible,self.run_id)

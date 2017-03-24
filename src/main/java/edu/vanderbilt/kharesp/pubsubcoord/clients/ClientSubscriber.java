@@ -25,6 +25,7 @@ public class ClientSubscriber {
 	private static CuratorFramework client;
 	
 	private static String hostName;
+	private static String region;
 	private static String pid;
 
 	public static void main(String[] args) {
@@ -46,6 +47,7 @@ public class ClientSubscriber {
 
 		try {
 			hostName=InetAddress.getLocalHost().getHostName();
+			region=hostName.substring(hostName.indexOf('i')+1, hostName.indexOf('-'));
 			pid=ManagementFactory.getRuntimeMXBean().getName().split("@")[0];
 			String file_name = topicName + "_" + hostName + "_"
 					+pid + ".csv";
@@ -93,7 +95,7 @@ public class ClientSubscriber {
 					writer.write(String.format("%d,%s,%d,%d,%d\n",reception_ts,sdf.format(new Date(reception_ts)),sample.sample_id, latency,interarrival_time));
 				}
 			};
-			String client_path=String.format("/experiment/%s/sub/%s/%s_%s_%s", runId,hostName,topicName,hostName,pid);
+			String client_path=String.format("/experiment/%s/sub/region_%s/%s/%s_%s_%s", runId,region,hostName,topicName,hostName,pid);
 			client.create().forPath(client_path, new byte[0]);
 			datareader.receive();
 			wait_for_data(sampleCount);

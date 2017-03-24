@@ -1,8 +1,8 @@
 import argparse,infrastructure,experiment3,time
 
 def create_conf(num_topics,locality):
-  num_routing_brokers=10
-  num_edge_brokers=20
+  num_routing_brokers=5
+  num_edge_brokers=5
   num_clients_per_region=10
   max_endpoints_per_client=10
 
@@ -142,7 +142,7 @@ sleep_interval:50"""%(num_topics,locality,','.join(rbs),','.join(ebs),','.join(c
     f.write(conf)
 
 def run(min_topics,step_size,max_topics,kill):
-  locality=['.1']
+  locality=['.6','.8']
   for num in range(min_topics,max_topics+step_size,step_size):
     for l in locality:
       create_conf(num,l)

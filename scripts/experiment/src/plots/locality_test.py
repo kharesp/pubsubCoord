@@ -106,5 +106,5 @@ if __name__=="__main__":
 
   summarize(args.log_dir,[int(i) for i in args.topic_count_list.split(',')],\
     [i for i in args.locality_list.split(',')])
-  plot(args.log_dir,[int(i) for i in args.topic_count_list.split(',')],\
-    [i for i in args.locality_list.split(',')])
+  #plot(args.log_dir,[int(i) for i in args.topic_count_list.split(',')],\
+  #  [i for i in args.locality_list.split(',')])

@@ -17,9 +17,7 @@ import org.apache.curator.retry.ExponentialBackoffRetry;
 import org.apache.curator.utils.CloseableUtils;
 import org.apache.log4j.Logger;
 
-import com.rti.dds.domain.DomainParticipantFactory;
-import com.rti.dds.domain.DomainParticipantQos;
-import com.rti.dds.infrastructure.TransportBuiltinKind;
+
 import com.rti.dds.subscription.SampleInfo;
 import com.rti.dds.subscription.Subscriber;
 import com.rti.dds.topic.Topic;
