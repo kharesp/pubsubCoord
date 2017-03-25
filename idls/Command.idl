@@ -1,0 +1,4 @@
+struct Command{
+	string command;
+        string arguments;
+};

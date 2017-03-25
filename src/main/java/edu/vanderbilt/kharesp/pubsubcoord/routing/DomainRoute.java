@@ -49,11 +49,11 @@ public class DomainRoute {
 		}else if(type.equals(EB_PUB_DOMAIN_ROUTE)){
 			firstParticipant=new DefaultParticipant(EdgeBroker.PUB_DOMAIN_ID);
 			secondParticipant= new DefaultParticipant(EdgeBroker.WAN_DOMAIN_ID,
-					participantQos(EdgeBroker.EB_P2_BIND_PORT));	
+					participantQos(EdgeBroker.EB_P2_PUB_BIND_PORT));	
 		}else if(type.equals(EB_SUB_DOMAIN_ROUTE)){
 			firstParticipant=new DefaultParticipant(EdgeBroker.SUB_DOMAIN_ID);
 			secondParticipant= new DefaultParticipant(EdgeBroker.WAN_DOMAIN_ID,
-					participantQos(EdgeBroker.EB_P2_BIND_PORT));	
+					participantQos(EdgeBroker.EB_P2_SUB_BIND_PORT));	
 		}else if(type.equals(EB_LOCAL_DOMAIN_ROUTE)){
 			firstParticipant=new DefaultParticipant(EdgeBroker.PUB_DOMAIN_ID);
 			secondParticipant= new DefaultParticipant(EdgeBroker.SUB_DOMAIN_ID);	
@@ -98,7 +98,7 @@ public class DomainRoute {
 
 				} else {
 					//Since publication topic session already exists in this domain route, 
-					//we don't need to regiter types or create topics
+					//we don't need to register types or create topics
 					TopicSession<?> session = publication_topic_sessions.get(topicName);
 					subscription_topic_sessions.put(topicName,
 							new TopicSession(session_type, session.t1,session.t2,session.typeSupport,
@@ -182,7 +182,7 @@ public class DomainRoute {
 	
 	private TypeSupportImpl get_type_support_instance(String type_name) {
 		try {
-			Class<?> type_support_class = Class.forName(TYPES_PACKAGE + "." + type_name);
+			Class<?> type_support_class = Class.forName(TYPES_PACKAGE + "." + type_name+"TypeSupport");
 			Method getInstance = type_support_class.getMethod("get_instance");
 			return (TypeSupportImpl) getInstance.invoke(null);
 		} catch (Exception e) {

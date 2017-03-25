@@ -2,7 +2,9 @@ package edu.vanderbilt.kharesp.pubsubcoord.routing;
 
 
 import com.rti.dds.infrastructure.Copyable;
+import com.rti.dds.publication.DataWriterQos;
 import com.rti.dds.publication.Publisher;
+import com.rti.dds.subscription.DataReaderQos;
 import com.rti.dds.subscription.SampleInfo;
 import com.rti.dds.subscription.Subscriber;
 import com.rti.dds.topic.Topic;
@@ -38,9 +40,17 @@ public class TopicSession<T extends Copyable>{
 		this.secondParticipant=p2;
 		if(session_type.equals(SUBSCRIPTION_SESSION)){
 			subscriber= firstParticipant.get_default_subscriber();
+			DataReaderQos readerQos= new DataReaderQos();
+			subscriber.get_default_datareader_qos(readerQos);
+			readerQos.user_data.value.addAllByte(RoutingService.TOPIC_ROUTE_STRING_CODE.getBytes());
+
 			publisher= secondParticipant.get_default_publisher();
-			dw= new GenericDataWriter<T>(publisher,t2);
-			dr= new GenericDataReader<T>(subscriber,t1,typeSupport){
+			DataWriterQos writerQos= new DataWriterQos();
+			publisher.get_default_datawriter_qos(writerQos);
+			writerQos.user_data.value.addAllByte(RoutingService.TOPIC_ROUTE_STRING_CODE.getBytes());
+
+			dw= new GenericDataWriter<T>(publisher,t2,writerQos);
+			dr= new GenericDataReader<T>(subscriber,t1,typeSupport,readerQos){
 				@Override
 				public void process(T sample, SampleInfo info) {
 					dw.write(sample);
@@ -50,9 +60,17 @@ public class TopicSession<T extends Copyable>{
 			
 		}else if(session_type.equals(PUBLICATION_SESSION)){
 			publisher=firstParticipant.get_default_publisher();
+			DataWriterQos writerQos= new DataWriterQos();
+			publisher.get_default_datawriter_qos(writerQos);
+			writerQos.user_data.value.addAllByte(RoutingService.TOPIC_ROUTE_STRING_CODE.getBytes());
+
 			subscriber=secondParticipant.get_default_subscriber();
-			dw= new GenericDataWriter<T>(publisher,t1);
-			dr= new GenericDataReader<T>(subscriber,t2,typeSupport){
+			DataReaderQos readerQos= new DataReaderQos();
+			subscriber.get_default_datareader_qos(readerQos);
+			readerQos.user_data.value.addAllByte(RoutingService.TOPIC_ROUTE_STRING_CODE.getBytes());
+
+			dw= new GenericDataWriter<T>(publisher,t1,writerQos);
+			dr= new GenericDataReader<T>(subscriber,t2,typeSupport,readerQos){
 				@Override
 				public void process(T sample, SampleInfo info) {
 					dw.write(sample);

@@ -3,10 +3,8 @@ package edu.vanderbilt.kharesp.pubsubcoord.brokers;
 import java.net.*;
 import java.util.*;
 import org.apache.zookeeper.CreateMode;
-
 import com.rti.dds.publication.builtin.PublicationBuiltinTopicData;
 import com.rti.dds.subscription.builtin.SubscriptionBuiltinTopicData;
-
 import org.apache.curator.framework.CuratorFramework;
 import org.apache.curator.framework.CuratorFrameworkFactory;
 import org.apache.curator.framework.recipes.cache.*;
@@ -16,6 +14,9 @@ import org.apache.curator.utils.ZKPaths;
 import org.apache.log4j.PropertyConfigurator;
 import org.apache.log4j.LogManager;
 import org.apache.log4j.Logger;
+import edu.vanderbilt.kharesp.pubsubcoord.routing.DomainRoute;
+import edu.vanderbilt.kharesp.pubsubcoord.routing.RoutingServiceAdministrator;
+import edu.vanderbilt.kharesp.pubsubcoord.routing.TopicSession;
 
 public class RoutingBroker {
 	private Logger logger;
@@ -31,7 +32,6 @@ public class RoutingBroker {
     public static final String EB_P2_SUB_BIND_PORT="8503";
 
     private static final String DOMAIN_ROUTE_NAME_PREFIX = "RoutingBrokerDomainRoute";
-    private static final String TOPIC_ROUTE_CODE = "107"; //this means letter 'k'
 
     private RoutingServiceAdministrator rs= null;
     private String rbAddress;
@@ -263,8 +263,8 @@ public class RoutingBroker {
                     			logger.debug(String.format("Publishing domains for topic:%s do not exist.\n"
                     					+ "Removing topic session:%s\n",topic,String.format("%s::%sTopicSession",
                     							domainRouteName,publication_builtin_topic_data.topic_name)));
-                    			rs.deleteTopicSession(String.format("%s::%sTopicSession",
-                    					domainRouteName,publication_builtin_topic_data.topic_name) );
+                    			//rs.deleteTopicSession(String.format("%s::%sTopicSession",
+                    					//domainRouteName,publication_builtin_topic_data.topic_name) );
                     		}
                     	}
                     	
@@ -350,8 +350,8 @@ public class RoutingBroker {
                     			logger.debug(String.format("Subscribing domains for topic:%s do not exist.\n"
                     					+ "Removing topic session:%s\n",topic,String.format("%s::%sTopicSession",
                     							domainRouteName,subscription_builtin_topic_data.topic_name)));
-                    			rs.deleteTopicSession(String.format("%s::%sTopicSession",
-                    					domainRouteName,subscription_builtin_topic_data.topic_name) );
+                    			//rs.deleteTopicSession(String.format("%s::%sTopicSession",
+                    			//		domainRouteName,subscription_builtin_topic_data.topic_name) );
                     		}
                     	}
                         break;
@@ -366,101 +366,12 @@ public class RoutingBroker {
     private void createDomainRoute(){
     	logger.debug(String.format("Creating domain route:%s for interconnecting domains between:%s and %s",
     			domainRouteName,RB_P1_BIND_PORT,RB_P2_BIND_PORT));
-
-    	rs.createDomainRoute("str://\"<domain_route name=\"" + domainRouteName + "\">" +
-                         "<entity_monitoring>" +
-                         "<historical_statistics><up_time>true</up_time></historical_statistics>" +
-                         "</entity_monitoring>" +
-                         "<participant_1>" +
-                         "<domain_id>" + WAN_DOMAIN_ID + "</domain_id>" +
-                         "<participant_qos>" +
-                         "<transport_builtin><mask>MASK_NONE</mask></transport_builtin>" +
-                         "<property><value>" +
-                         "<element><name>dds.transport.load_plugins</name><value>dds.transport.TCPv4.tcp1</value></element>" +
-                         "<element><name>dds.transport.TCPv4.tcp1.library</name><value>nddstransporttcp</value></element>" +
-                         "<element><name>dds.transport.TCPv4.tcp1.create_function</name><value>NDDS_Transport_TCPv4_create</value></element>" +
-                         "<element><name>dds.transport.TCPv4.tcp1.parent.classid</name><value>NDDS_TRANSPORT_CLASSID_TCPV4_WAN</value></element>" +
-                         "<element><name>dds.transport.TCPv4.tcp1.public_address</name><value>" +
-                         rbAddress + ":" + RB_P1_BIND_PORT +
-                         "</value></element>" +
-                         "<element><name>dds.transport.TCPv4.tcp1.server_bind_port</name><value>" +
-                         RB_P1_BIND_PORT + "</value></element>" +
-                         "</value></property>" +
-                         "</participant_qos>" +
-                         "</participant_1>" +
-                         "<participant_2>" +
-                         "<domain_id>" + WAN_DOMAIN_ID + "</domain_id>" +
-                         "<participant_qos>" +
-                         "<transport_builtin><mask>MASK_NONE</mask></transport_builtin>" +
-                         "<property><value>" +
-                         "<element><name>dds.transport.load_plugins</name><value>dds.transport.TCPv4.tcp1</value></element>" +
-                         "<element><name>dds.transport.TCPv4.tcp1.library</name><value>nddstransporttcp</value></element>" +
-                         "<element><name>dds.transport.TCPv4.tcp1.create_function</name><value>NDDS_Transport_TCPv4_create</value></element>" +
-                         "<element><name>dds.transport.TCPv4.tcp1.parent.classid</name><value>NDDS_TRANSPORT_CLASSID_TCPV4_WAN</value></element>" +
-                         "<element><name>dds.transport.TCPv4.tcp1.public_address</name><value>" +
-                         rbAddress + ":" + RB_P2_BIND_PORT +
-                         "</value></element>" +
-                         "<element><name>dds.transport.TCPv4.tcp1.server_bind_port</name><value>" +
-                         RB_P2_BIND_PORT +
-                         "</value></element>" +
-                         "</value></property>" +
-                         "</participant_qos>" +
-                         "</participant_2>" +
-                         "</domain_route>\"");
+    	rs.createDomainRoute(domainRouteName, DomainRoute.RB_DOMAIN_ROUTE);
     }
     
     private void createTopicSession(String topic_name,String type_name) {
     	logger.debug(String.format("Creating Topic Session for topic:%s\n",topic_name ));
-
-    	rs.createTopicSession(domainRouteName,
-    			  "str://\"<session name=\"" + topic_name + "TopicSession\">" +
-                          "<topic_route name=\"" + topic_name + "TopicRoute\">" +
-                          "<route_types>true</route_types>" +
-                          "<publish_with_original_info>true</publish_with_original_info>" +
-                          "<publish_with_original_timestamp>true</publish_with_original_timestamp>" +
-                          "<input participant=\"1\">" +
-                          "<topic_name>" + topic_name + "</topic_name>" +
-                          "<registered_type_name>" + type_name + "</registered_type_name>" +
-                          "<creation_mode>IMMEDIATE</creation_mode>" +
-                          "<datareader_qos>" +
-                          "<reliability>" +
-                          "<kind>RELIABLE_RELIABILITY_QOS</kind>" +
-                          "</reliability>" +
-                          "<durability>" +
-                          "<kind>TRANSIENT_LOCAL_DURABILITY_QOS</kind>" +
-                          "</durability>" +
-                          "<history>" +
-                          "<kind>KEEP_ALL_HISTORY_QOS</kind>" +
-                          "</history>" +
-                          "<user_data><value>" + TOPIC_ROUTE_CODE + "</value></user_data>" +
-                          "</datareader_qos>" +
-                          "</input>" +
-                          "<output>" +
-                          "<topic_name>" + topic_name + "</topic_name>" +
-                          "<registered_type_name>" + type_name + "</registered_type_name>" +
-                          "<creation_mode>IMMEDIATE</creation_mode>" +
-                          "<datawriter_qos>" +
-                          "<reliability>" +
-                          "<kind>RELIABLE_RELIABILITY_QOS</kind>" +
-                          "</reliability>" +
-                          "<durability>" +
-                          "<kind>TRANSIENT_LOCAL_DURABILITY_QOS</kind>" +
-                          "</durability>" +
-                          "<history>" +
-                          "<kind>KEEP_ALL_HISTORY_QOS</kind>" +
-                          "</history>" +
-                          "<lifespan>" +
-                          "<duration>" +
-                          "<sec>300</sec>" +
-                          "<nanosec>0</nanosec>" +
-                          "</duration>" +
-                          "</lifespan>" +
-                          "<user_data><value>" + TOPIC_ROUTE_CODE + "</value></user_data>" +
-                          "</datawriter_qos>" +
-                          "</output>" +
-                          "</topic_route>" +
-                          "</session>\"");
+    	rs.createTopicSession(domainRouteName, topic_name, type_name,TopicSession.SUBSCRIPTION_SESSION );
     }
-
 
 }

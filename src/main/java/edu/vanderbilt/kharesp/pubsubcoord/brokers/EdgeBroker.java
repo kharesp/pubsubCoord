@@ -18,6 +18,9 @@ import com.rti.dds.subscription.Subscriber;
 import com.rti.dds.subscription.builtin.SubscriptionBuiltinTopicDataDataReader;
 import com.rti.dds.subscription.builtin.SubscriptionBuiltinTopicDataTypeSupport;
 
+import edu.vanderbilt.kharesp.pubsubcoord.routing.DomainRoute;
+import edu.vanderbilt.kharesp.pubsubcoord.routing.RoutingServiceAdministrator;
+
 public class EdgeBroker {
 	// Domain id in which Routing Brokers operate in the cloud
 	public static final int WAN_DOMAIN_ID = 230;
@@ -29,8 +32,8 @@ public class EdgeBroker {
 	public static final int SUB_DOMAIN_ID=1;
     // public facing port for sending/receiving data for this local domain
     public static final String EB_P2_BIND_PORT = "8502";
-    private static final String EB_P2_PUB_BIND_PORT = "8502";
-    private static final String EB_P2_SUB_BIND_PORT = "8503";
+    public static final String EB_P2_PUB_BIND_PORT = "8502";
+    public static final String EB_P2_SUB_BIND_PORT = "8503";
 
     private static final String DOMAIN_ROUTE_NAME_PREFIX = "EdgeBrokerDomainRoute";
     private static final String LOCAL_DOMAIN_ROUTE_NAME_PREFIX = "LocalEdgeBrokerDomainRoute";
@@ -217,110 +220,24 @@ public class EdgeBroker {
     	logger.debug(String.format("EB:%s will create a DomainRoute:%s between local domain id:%d and wan domain id:%d\n",
     			ebAddress,domainRouteName,DEFAULT_DOMAIN_ID,WAN_DOMAIN_ID));
     	
-    	rs.createDomainRoute("str://\"<domain_route name=\"" + domainRouteName + "\">" +
-                         "<entity_monitoring>" +
-                         "<historical_statistics><up_time>true</up_time></historical_statistics>" +
-                         "</entity_monitoring>" +
-                         "<participant_1>" +
-                         "<domain_id>" + DEFAULT_DOMAIN_ID+ "</domain_id>" +
-                         "</participant_1>" +
-                         "<participant_2>" +
-                         "<domain_id>" + WAN_DOMAIN_ID + "</domain_id>" +
-                         "<participant_qos>" +
-                         "<transport_builtin><mask>MASK_NONE</mask></transport_builtin>" +
-                         "<property><value>" +
-                         "<element><name>dds.transport.load_plugins</name><value>dds.transport.TCPv4.tcp1</value></element>" +
-                         "<element><name>dds.transport.TCPv4.tcp1.library</name><value>nddstransporttcp</value></element>" +
-                         "<element><name>dds.transport.TCPv4.tcp1.create_function</name><value>NDDS_Transport_TCPv4_create</value></element>" +
-                         "<element><name>dds.transport.TCPv4.tcp1.parent.classid</name><value>NDDS_TRANSPORT_CLASSID_TCPV4_WAN</value></element>" +
-                         "<element><name>dds.transport.TCPv4.tcp1.public_address</name><value>" +
-                         ebAddress + ":" + EB_P2_BIND_PORT + 
-                         "</value></element>" +
-                         "<element><name>dds.transport.TCPv4.tcp1.server_bind_port</name><value>" +
-                         EB_P2_BIND_PORT +
-                         "</value></element>" +
-                         "</value></property>" +
-                         "</participant_qos>" +
-                         "</participant_2>" +
-                         "</domain_route>\"");
+    	rs.createDomainRoute(domainRouteName,DomainRoute.EB_DOMAIN_ROUTE);
     }
     private void createLocalDomainRoute(){
     	logger.debug(String.format("EB:%s will create a DomainRoute:%s between publisher's local domain id:%d and subscriber's local domain id:%d\n",
     			ebAddress,localDomainRouteName,PUB_DOMAIN_ID,SUB_DOMAIN_ID));
-    	rs.createDomainRoute("str://\"<domain_route name=\"" + localDomainRouteName + "\">" +
-                "<entity_monitoring>" +
-                "<historical_statistics><up_time>true</up_time></historical_statistics>" +
-                "</entity_monitoring>" +
-                "<participant_1>" +
-                "<domain_id>" + PUB_DOMAIN_ID+ "</domain_id>" +
-                "</participant_1>" +
-                "<participant_2>" +
-                "<domain_id>" + SUB_DOMAIN_ID + "</domain_id>" +
-                "</participant_2>" +
-                "</domain_route>\"");
+    	rs.createDomainRoute(localDomainRouteName,DomainRoute.EB_LOCAL_DOMAIN_ROUTE);
     	
     }
     private void createPubDomainRoute(){
     	logger.debug(String.format("EB:%s will create a DomainRoute:%s between publisher's local domain id:%d and wan domain id:%d\n",
     			ebAddress,pubDomainRouteName,PUB_DOMAIN_ID,WAN_DOMAIN_ID));
     	
-    	rs.createDomainRoute("str://\"<domain_route name=\"" + pubDomainRouteName + "\">" +
-                         "<entity_monitoring>" +
-                         "<historical_statistics><up_time>true</up_time></historical_statistics>" +
-                         "</entity_monitoring>" +
-                         "<participant_1>" +
-                         "<domain_id>" + PUB_DOMAIN_ID+ "</domain_id>" +
-                         "</participant_1>" +
-                         "<participant_2>" +
-                         "<domain_id>" + WAN_DOMAIN_ID + "</domain_id>" +
-                         "<participant_qos>" +
-                         "<transport_builtin><mask>MASK_NONE</mask></transport_builtin>" +
-                         "<property><value>" +
-                         "<element><name>dds.transport.load_plugins</name><value>dds.transport.TCPv4.tcp1</value></element>" +
-                         "<element><name>dds.transport.TCPv4.tcp1.library</name><value>nddstransporttcp</value></element>" +
-                         "<element><name>dds.transport.TCPv4.tcp1.create_function</name><value>NDDS_Transport_TCPv4_create</value></element>" +
-                         "<element><name>dds.transport.TCPv4.tcp1.parent.classid</name><value>NDDS_TRANSPORT_CLASSID_TCPV4_WAN</value></element>" +
-                         "<element><name>dds.transport.TCPv4.tcp1.public_address</name><value>" +
-                         ebAddress + ":" + EB_P2_PUB_BIND_PORT +
-                         "</value></element>" +
-                         "<element><name>dds.transport.TCPv4.tcp1.server_bind_port</name><value>" +
-                         EB_P2_PUB_BIND_PORT +
-                         "</value></element>" +
-                         "</value></property>" +
-                         "</participant_qos>" +
-                         "</participant_2>" +
-                         "</domain_route>\"");
+    	rs.createDomainRoute(pubDomainRouteName,DomainRoute.EB_PUB_DOMAIN_ROUTE);
     }
     private void createSubDomainRoute(){
     	logger.debug(String.format("EB:%s will create a DomainRoute:%s between subscriber's local domain id:%d and wan domain id:%d\n",
     			ebAddress,subDomainRouteName,SUB_DOMAIN_ID,WAN_DOMAIN_ID));
-    	
-    	rs.createDomainRoute("str://\"<domain_route name=\"" + subDomainRouteName + "\">" +
-                         "<entity_monitoring>" +
-                         "<historical_statistics><up_time>true</up_time></historical_statistics>" +
-                         "</entity_monitoring>" +
-                         "<participant_1>" +
-                         "<domain_id>" + SUB_DOMAIN_ID+ "</domain_id>" +
-                         "</participant_1>" +
-                         "<participant_2>" +
-                         "<domain_id>" + WAN_DOMAIN_ID + "</domain_id>" +
-                         "<participant_qos>" +
-                         "<transport_builtin><mask>MASK_NONE</mask></transport_builtin>" +
-                         "<property><value>" +
-                         "<element><name>dds.transport.load_plugins</name><value>dds.transport.TCPv4.tcp1</value></element>" +
-                         "<element><name>dds.transport.TCPv4.tcp1.library</name><value>nddstransporttcp</value></element>" +
-                         "<element><name>dds.transport.TCPv4.tcp1.create_function</name><value>NDDS_Transport_TCPv4_create</value></element>" +
-                         "<element><name>dds.transport.TCPv4.tcp1.parent.classid</name><value>NDDS_TRANSPORT_CLASSID_TCPV4_WAN</value></element>" +
-                         "<element><name>dds.transport.TCPv4.tcp1.public_address</name><value>" +
-                         ebAddress + ":" + EB_P2_SUB_BIND_PORT +
-                         "</value></element>" +
-                         "<element><name>dds.transport.TCPv4.tcp1.server_bind_port</name><value>" +
-                         EB_P2_SUB_BIND_PORT +
-                         "</value></element>" +
-                         "</value></property>" +
-                         "</participant_qos>" +
-                         "</participant_2>" +
-                         "</domain_route>\"");
+    	rs.createDomainRoute(subDomainRouteName,DomainRoute.EB_SUB_DOMAIN_ROUTE);
     }
 
 }

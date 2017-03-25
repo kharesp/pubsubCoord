@@ -7,6 +7,7 @@ import com.rti.dds.infrastructure.ResourceLimitsQosPolicy;
 import com.rti.dds.infrastructure.StatusKind;
 import com.rti.dds.subscription.DataReader;
 import com.rti.dds.subscription.DataReaderAdapter;
+import com.rti.dds.subscription.DataReaderQos;
 import com.rti.dds.subscription.InstanceStateKind;
 import com.rti.dds.subscription.SampleInfo;
 import com.rti.dds.subscription.SampleInfoSeq;
@@ -23,20 +24,37 @@ public abstract class GenericDataReader<T extends Copyable> {
 	private Subscriber subscriber;
 	private Topic topic;
 	private DataReader reader;
+	private DataReaderQos readerQos;
 	private SampleInfoSeq infoSeq;
 	private LoanableSequence dataSeq;
 
 
-    public GenericDataReader(Subscriber subscriber,Topic topic,TypeSupportImpl typeSupport) throws Exception {
+    public GenericDataReader(Subscriber subscriber,
+    		Topic topic,TypeSupportImpl typeSupport) throws Exception {
     	this.subscriber=subscriber;
     	this.topic=topic;
     	this.typeSupport=typeSupport;
+    	readerQos=null;
+		initialize();
+	}
+
+    public GenericDataReader(Subscriber subscriber,
+    		Topic topic,TypeSupportImpl typeSupport,DataReaderQos qos) throws Exception {
+    	this.subscriber=subscriber;
+    	this.topic=topic;
+    	this.typeSupport=typeSupport;
+    	readerQos=qos;
 		initialize();
 	}
 	
 	private void initialize() throws Exception{
-		reader= subscriber.create_datareader(topic,Subscriber.DATAREADER_QOS_DEFAULT,
+		if(readerQos==null){
+			reader= subscriber.create_datareader(topic,Subscriber.DATAREADER_QOS_DEFAULT,
 				null,StatusKind.STATUS_MASK_ALL);
+		}else{
+			reader= subscriber.create_datareader(topic,readerQos,
+				null,StatusKind.STATUS_MASK_ALL);
+		}
 		if (reader== null) {
 			throw new Exception("create_datareader error\n");
 		}

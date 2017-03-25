@@ -18,11 +18,12 @@ import com.rti.dds.subscription.DataReaderAdapter;
 import com.rti.dds.subscription.InstanceStateKind;
 import com.rti.dds.subscription.SampleInfo;
 
+import edu.vanderbilt.kharesp.pubsubcoord.routing.RoutingService;
+import edu.vanderbilt.kharesp.pubsubcoord.routing.RoutingServiceAdministrator;
+import edu.vanderbilt.kharesp.pubsubcoord.routing.TopicSession;
+
 public class BuiltinPublisherListener extends DataReaderAdapter {
 
-	//Constant String Value to identify endpoints created by RS
-	private static final String TOPIC_ROUTE_CODE = "107"; 
-    private static final String TOPIC_ROUTE_STRING_CODE = "k";
     
     //Port at which RBs listen for incoming/publisher data
     private static final String RB_P1_BIND_PORT = "8500";
@@ -101,7 +102,7 @@ public class BuiltinPublisherListener extends DataReaderAdapter {
                  new String(publication_builtin_topic_data.user_data.value.toArrayByte(null));
 
          //Process only if this publisher is a client publisher in our local domain 
-         if (!(userData.equals(TOPIC_ROUTE_STRING_CODE))) {
+         if (!(userData.equals(RoutingService.TOPIC_ROUTE_STRING_CODE))) {
         	 //Cache topic name of discovered Publisher
         	 String topic=publication_builtin_topic_data.topic_name.replaceAll("\\s", "");
 
@@ -167,14 +168,14 @@ public class BuiltinPublisherListener extends DataReaderAdapter {
    	 		//Remove topic session if publisher count==0
    	 		logger.debug(String.format("Removing topic session for %s as publisher count is 0\n", topic));
    	 		if(emulated_broker){
-   	 			rs.deleteTopicSession(String.format("%s::%sSubscriptionSession",
-   	 				localDomainRouteName,publication_builtin_topic_data.topic_name));
-   	 			rs.deleteTopicSession(String.format("%s::%sSubscriptionSession",
-   	 				pubDomainRouteName,publication_builtin_topic_data.topic_name));
+   	 			//rs.deleteTopicSession(String.format("%s::%sSubscriptionSession",
+   	 			//	localDomainRouteName,publication_builtin_topic_data.topic_name));
+   	 			//rs.deleteTopicSession(String.format("%s::%sSubscriptionSession",
+   	 			//	pubDomainRouteName,publication_builtin_topic_data.topic_name));
    	 		}
    	 		else{
-   	 			rs.deleteTopicSession(String.format("%s::%sSubscriptionSession",
-   	 				domainRouteName,publication_builtin_topic_data.topic_name));
+   	 			//rs.deleteTopicSession(String.format("%s::%sSubscriptionSession",
+   	 			//	domainRouteName,publication_builtin_topic_data.topic_name));
    	 		}
    	 	
    	 		//Remove listener for RB assignment if publisher count=0
@@ -209,7 +210,7 @@ public class BuiltinPublisherListener extends DataReaderAdapter {
 	
 	private void create_EB_znode(String topic,
 		PublicationBuiltinTopicData publication_builtin_data){
-		//ensure topic path /topics/t/pub and /topics/t/sub exists
+		//ensure topic path /topics/t/pub exists
 	    ensure_topic_path_exists(topic);
 		String parent_path= (CuratorHelper.TOPIC_PATH+"/"+topic+"/pub");
 		String znode_name=ebAddress;
@@ -317,59 +318,12 @@ public class BuiltinPublisherListener extends DataReaderAdapter {
 	}
 	
 	private void create_topic_session(String topic_name,String type_name){
-		String command_string="str://\"<session name=\"" + topic_name + "SubscriptionSession\">" +
-                         "<topic_route name=\"" + topic_name + "SubscriptionRoute\">" +
-                         "<route_types>true</route_types>" +
-                         "<publish_with_original_info>true</publish_with_original_info>" +
-                         "<publish_with_original_timestamp>true</publish_with_original_timestamp>" +
-                         "<input participant=\"1\">" +
-                         "<topic_name>" + topic_name + "</topic_name>" +
-                         "<registered_type_name>" + type_name + "</registered_type_name>" +
-                         "<creation_mode>ON_DOMAIN_MATCH</creation_mode>" +
-                         "<datareader_qos>" +
-                         "<reliability>" +
-                         "<kind>RELIABLE_RELIABILITY_QOS</kind>" +
-                         "</reliability>" +
-                         "<durability>" +
-                         "<kind>TRANSIENT_LOCAL_DURABILITY_QOS</kind>" +
-                         "</durability>" +
-                         "<history>" +
-                         "<kind>KEEP_ALL_HISTORY_QOS</kind>" +
-                         "</history>" +
-                         "<user_data><value>" + TOPIC_ROUTE_CODE + "</value></user_data>" +
-                         "</datareader_qos>" +
-                         "</input>" +
-                         "<output>" +
-                         "<topic_name>" + topic_name + "</topic_name>" +
-                         "<registered_type_name>" + type_name + "</registered_type_name>" +
-                         "<creation_mode>ON_DOMAIN_AND_ROUTE_MATCH</creation_mode>" +
-                         "<datawriter_qos>" +
-                         "<reliability>" +
-                         "<kind>RELIABLE_RELIABILITY_QOS</kind>" +
-                         "</reliability>" +
-                         "<durability>" +
-                         "<kind>TRANSIENT_LOCAL_DURABILITY_QOS</kind>" +
-                         "</durability>" +
-                         "<history>" +
-                         "<kind>KEEP_ALL_HISTORY_QOS</kind>" +
-                         "</history>" +
-                         "<lifespan>" +
-                         "<duration>" +
-                         "<sec>300</sec>" +
-                         "<nanosec>0</nanosec>" +
-                         "</duration>" +
-                         "</lifespan>" +
-                         "<user_data><value>" + TOPIC_ROUTE_CODE + "</value></user_data>" +
-                         "</datawriter_qos>" +
-                         "</output>" +
-                         "</topic_route>" +
-                         "</session>\"";
 		if(emulated_broker){
-			rs.createTopicSession(localDomainRouteName, command_string);
-			rs.createTopicSession(pubDomainRouteName, command_string);
+			rs.createTopicSession(localDomainRouteName, topic_name,type_name,TopicSession.SUBSCRIPTION_SESSION);
+			rs.createTopicSession(pubDomainRouteName, topic_name,type_name, TopicSession.SUBSCRIPTION_SESSION);
 		}
 		else{
-			rs.createTopicSession(domainRouteName,command_string);
+			rs.createTopicSession(domainRouteName,topic_name, type_name, TopicSession.SUBSCRIPTION_SESSION);
 		}
 	}
 
