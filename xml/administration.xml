@@ -11,10 +11,12 @@
 
         <administration>
             <domain_id>55</domain_id>
+            <participant_qos><transport_builtin><mask>UDPv4</mask></transport_builtin></participant_qos>
         </administration>
 
         <monitoring>
             <domain_id>56</domain_id>
+            <participant_qos><transport_builtin><mask>UDPv4</mask></transport_builtin></participant_qos>
             <statistics_sampling_period>
                 <sec>1</sec>
                 <nanosec>0</nanosec>
