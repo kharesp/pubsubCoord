@@ -102,7 +102,7 @@ public class BuiltinPublisherListener extends DataReaderAdapter {
                  new String(publication_builtin_topic_data.user_data.value.toArrayByte(null));
 
          //Process only if this publisher is a client publisher in our local domain 
-         if (!(userData.equals(RoutingService.TOPIC_ROUTE_STRING_CODE))) {
+         if (!(userData.equals(RoutingService.INFRASTRUCTURE_NODE_IDENTIFIER))) {
         	 //Cache topic name of discovered Publisher
         	 String topic=publication_builtin_topic_data.topic_name.replaceAll("\\s", "");
 
@@ -168,14 +168,14 @@ public class BuiltinPublisherListener extends DataReaderAdapter {
    	 		//Remove topic session if publisher count==0
    	 		logger.debug(String.format("Removing topic session for %s as publisher count is 0\n", topic));
    	 		if(emulated_broker){
-   	 			//rs.deleteTopicSession(String.format("%s::%sSubscriptionSession",
-   	 			//	localDomainRouteName,publication_builtin_topic_data.topic_name));
-   	 			//rs.deleteTopicSession(String.format("%s::%sSubscriptionSession",
-   	 			//	pubDomainRouteName,publication_builtin_topic_data.topic_name));
+   	 			rs.deleteTopicSession(localDomainRouteName,publication_builtin_topic_data.topic_name,
+   	 					publication_builtin_topic_data.type_name,TopicSession.SUBSCRIPTION_SESSION);
+   	 			rs.deleteTopicSession(pubDomainRouteName,publication_builtin_topic_data.topic_name,
+   	 					publication_builtin_topic_data.type_name,TopicSession.SUBSCRIPTION_SESSION);
    	 		}
    	 		else{
-   	 			//rs.deleteTopicSession(String.format("%s::%sSubscriptionSession",
-   	 			//	domainRouteName,publication_builtin_topic_data.topic_name));
+   	 			rs.deleteTopicSession(domainRouteName,publication_builtin_topic_data.topic_name,
+   	 				publication_builtin_topic_data.type_name,TopicSession.SUBSCRIPTION_SESSION);
    	 		}
    	 	
    	 		//Remove listener for RB assignment if publisher count=0
@@ -195,14 +195,18 @@ public class BuiltinPublisherListener extends DataReaderAdapter {
    	 		HashSet<String> topics= rb_topics_map.getOrDefault(RB_address,null);
    	 		if (topics!=null){
    	 			topics.remove(topic_path);
-   	 			/*if(topics.size()==0){
+   	 			if(topics.size()==0){
    	 				//remove RB as peer 
    	 				logger.debug(String.format("Local domain is not connected to RB:%s for any topics.\n"
    	 						+ "Hence, removing RB:%s as peer.\n",RB_address,RB_address));
    	 				String rbLocator = "tcpv4_wan://" + RB_address + ":" + RB_P1_BIND_PORT;
-   	 				rs.removePeer(domainRouteName,rbLocator,false);
+   	 				if(emulated_broker){
+   	 					rs.removePeer(pubDomainRouteName,rbLocator,false);
+   	 				}else{
+   	 					rs.removePeer(domainRouteName,rbLocator,false);
+   	 				}
    	 				rb_topics_map.remove(RB_address);
-   	 			}*/
+   	 			}
    	 		}
    	 		
    	 	}

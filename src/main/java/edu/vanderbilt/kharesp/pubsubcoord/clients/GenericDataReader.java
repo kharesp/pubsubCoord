@@ -7,6 +7,7 @@ import com.rti.dds.infrastructure.ResourceLimitsQosPolicy;
 import com.rti.dds.infrastructure.StatusKind;
 import com.rti.dds.subscription.DataReader;
 import com.rti.dds.subscription.DataReaderAdapter;
+import com.rti.dds.subscription.DataReaderProtocolStatus;
 import com.rti.dds.subscription.DataReaderQos;
 import com.rti.dds.subscription.InstanceStateKind;
 import com.rti.dds.subscription.SampleInfo;
@@ -14,7 +15,7 @@ import com.rti.dds.subscription.SampleInfoSeq;
 import com.rti.dds.subscription.SampleStateKind;
 import com.rti.dds.subscription.Subscriber;
 import com.rti.dds.subscription.ViewStateKind;
-import com.rti.dds.topic.Topic;
+import com.rti.dds.topic.TopicDescription;
 import com.rti.dds.topic.TypeSupportImpl;
 import com.rti.dds.util.LoanableSequence;
 
@@ -22,7 +23,7 @@ public abstract class GenericDataReader<T extends Copyable> {
 
 	private TypeSupportImpl typeSupport;
 	private Subscriber subscriber;
-	private Topic topic;
+	private TopicDescription topic;
 	private DataReader reader;
 	private DataReaderQos readerQos;
 	private SampleInfoSeq infoSeq;
@@ -30,7 +31,7 @@ public abstract class GenericDataReader<T extends Copyable> {
 
 
     public GenericDataReader(Subscriber subscriber,
-    		Topic topic,TypeSupportImpl typeSupport) throws Exception {
+    		TopicDescription topic,TypeSupportImpl typeSupport) throws Exception {
     	this.subscriber=subscriber;
     	this.topic=topic;
     	this.typeSupport=typeSupport;
@@ -39,7 +40,7 @@ public abstract class GenericDataReader<T extends Copyable> {
 	}
 
     public GenericDataReader(Subscriber subscriber,
-    		Topic topic,TypeSupportImpl typeSupport,DataReaderQos qos) throws Exception {
+    		TopicDescription topic,TypeSupportImpl typeSupport,DataReaderQos qos) throws Exception {
     	this.subscriber=subscriber;
     	this.topic=topic;
     	this.typeSupport=typeSupport;
@@ -68,9 +69,15 @@ public abstract class GenericDataReader<T extends Copyable> {
 		}
 	}
 	
-	public void receive(){
+	public void receive() throws Exception{
 		DataReaderListener listener= new DataReaderListener();
 		reader.set_listener(listener, StatusKind.STATUS_MASK_ALL);
+	}
+	
+	public DataReaderProtocolStatus status() throws Exception{
+		DataReaderProtocolStatus status= new DataReaderProtocolStatus();
+		reader.get_datareader_protocol_status(status);
+		return status;
 	}
 	
 	@SuppressWarnings("unchecked") 
@@ -82,11 +89,14 @@ public abstract class GenericDataReader<T extends Copyable> {
 
 			for (int j = 0; j < dataSeq.size(); ++j) {
 				SampleInfo info=(SampleInfo)infoSeq.get(j);
+				SampleInfo infoCopy= new SampleInfo();
+				infoCopy.copy_from(info);
+
 				if (info.valid_data) {
 					T sample= (T) dataSeq.get(j);
 					T dataCopy= (T) typeSupport.create_data();
 					dataCopy.copy_from(sample);
-					process(dataCopy,info);
+					process(dataCopy,infoCopy);
 				}
 			}
 		} catch (RETCODE_NO_DATA noData)
@@ -97,5 +107,9 @@ public abstract class GenericDataReader<T extends Copyable> {
 	}
 	
 	public abstract void process(T sample,SampleInfo info);
+	
+	public void delete_datareader() throws Exception{
+		subscriber.delete_datareader(reader);
+	}
    
 }

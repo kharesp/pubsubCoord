@@ -10,8 +10,8 @@ import java.util.Date;
 import com.rti.dds.subscription.SampleInfo;
 import com.rti.dds.subscription.Subscriber;
 import com.rti.dds.topic.Topic;
-import com.rti.idl.test.DataSample_64B;
-import com.rti.idl.test.DataSample_64BTypeSupport;
+import com.rti.idl.DataSample_64B;
+import com.rti.idl.DataSample_64BTypeSupport;
 
 import org.apache.curator.framework.CuratorFramework;
 import org.apache.curator.framework.CuratorFrameworkFactory;
@@ -94,7 +94,11 @@ public class ClientSubscriber {
 			System.out.println(e.getMessage());
 
 		} finally {
-			participant.shutdown();
+			try {
+				participant.shutdown();
+			} catch (Exception e) {
+				//ignored
+			}
 		}
 	}
 

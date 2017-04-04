@@ -3,6 +3,7 @@ package edu.vanderbilt.kharesp.pubsubcoord.clients;
 import com.rti.dds.infrastructure.InstanceHandle_t;
 import com.rti.dds.infrastructure.StatusKind;
 import com.rti.dds.publication.DataWriter;
+import com.rti.dds.publication.DataWriterProtocolStatus;
 import com.rti.dds.publication.DataWriterQos;
 import com.rti.dds.publication.Publisher;
 import com.rti.dds.topic.Topic;
@@ -43,9 +44,18 @@ public class GenericDataWriter<T> {
 		instance_handle= InstanceHandle_t.HANDLE_NIL;
 	}
 	
+	public DataWriterProtocolStatus status() throws Exception{
+		DataWriterProtocolStatus status= new DataWriterProtocolStatus();
+		writer.get_datawriter_protocol_status(status);
+		return status;
+	}
 	
 	public void write(T sample){
 		writer.write_untyped(sample, instance_handle);
+	}
+	
+	public void delete_datawriter(){
+		publisher.delete_datawriter(writer);
 	}
 
 }

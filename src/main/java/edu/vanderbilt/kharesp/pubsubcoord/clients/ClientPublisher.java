@@ -2,9 +2,12 @@ package edu.vanderbilt.kharesp.pubsubcoord.clients;
 
 import com.rti.dds.publication.Publisher;
 import com.rti.dds.topic.Topic;
-import com.rti.idl.test.DataSample_64B;
-import com.rti.idl.test.DataSample_64BTypeSupport;
+import com.rti.idl.DataSample_64B;
+import com.rti.idl.DataSample_64BTypeSupport;
 import org.apache.zookeeper.CreateMode;
+
+import java.net.InetAddress;
+
 import org.apache.curator.framework.CuratorFramework;
 import org.apache.curator.framework.CuratorFrameworkFactory;
 import org.apache.curator.retry.ExponentialBackoffRetry;
@@ -14,6 +17,7 @@ import org.apache.curator.framework.recipes.barriers.DistributedBarrier;
 public class ClientPublisher {
 	private static CuratorFramework client;
 	private static DistributedBarrier barrier;
+	private static int region_id;
 
 	public static void main(String[] args) {
 		if (args.length < 7) {
@@ -28,10 +32,13 @@ public class ClientPublisher {
 		int sendInterval = Integer.valueOf(args[4]).intValue();
 		String runId = args[5];
 		String zkConnector = args[6];
+		
 
 		client = CuratorFrameworkFactory.newClient(zkConnector, new ExponentialBackoffRetry(1000, 3));
 		client.start();
 		try {
+			String address= InetAddress.getLocalHost().getHostAddress();
+			region_id=Integer.parseInt(address.split("\\.")[2]);
 			client.create().withProtection().withMode(CreateMode.EPHEMERAL_SEQUENTIAL)
 					.forPath(String.format("/experiment/%s/pub/pub", runId), new byte[0]);
 			barrier = new DistributedBarrier(client, String.format("/experiment/%s/barriers/pub", runId));
@@ -67,6 +74,7 @@ public class ClientPublisher {
 			barrier.waitOnBarrier();
 			for (int count = 0; count < sampleCount; ++count) {
 				instance.sample_id = count;
+				instance.region_id=region_id;
 				instance.ts_milisec = System.currentTimeMillis();
 				datawriter.write(instance);
 
@@ -81,7 +89,11 @@ public class ClientPublisher {
 		} catch (Exception e) {
 			System.out.println(e.getMessage());
 		} finally {
-			participant.shutdown();
+			try {
+				participant.shutdown();
+			} catch (Exception e) {
+				//ignored
+			}
 		}
 	}
 

@@ -5,118 +5,192 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.LinkedBlockingQueue;
-
-import com.rti.idl.command.CommandTypeSupport;
+import com.rti.idl.CommandTypeSupport;
 import com.rti.dds.subscription.DataReaderQos;
 import com.rti.dds.subscription.SampleInfo;
 import com.rti.dds.subscription.Subscriber;
-import com.rti.idl.command.Command;
-
+import com.rti.idl.Command;
 import edu.vanderbilt.kharesp.pubsubcoord.clients.DefaultParticipant;
 import edu.vanderbilt.kharesp.pubsubcoord.clients.GenericDataReader;
+import org.apache.log4j.Logger;
+import org.apache.log4j.PropertyConfigurator;
 
 public class RoutingService {
+	//Domain Id in which Routing Service operates in 
 	public static final int RS_ADMIN_DOMAIN_ID = 55;
+	//Topic on which Routing Service receives control commands
 	public static final String COMMAND_TOPIC="command";
-	public static final String TOPIC_ROUTE_STRING_CODE = "k";
+	//user_data qos identifier to distinguish infrastructure entities from client endpoints 
+	public static final String INFRASTRUCTURE_NODE_IDENTIFIER = "k";
 
+	//Command types
 	public static final String COMMAND_CREATE_DOMAIN_ROUTE="create_domain_route";
 	public static final String COMMAND_CREATE_TOPIC_SESSION="create_topic_session";
+	public static final String COMMAND_DELETE_TOPIC_SESSION="delete_topic_session";
 	public static final String COMMAND_ADD_PEER="add_peer";
 	public static final String COMMAND_DELETE_PEER="delete_peer";
 
-	private String routingServiceName;
-	private Map<String,DomainRoute> domain_routes;
+	//regionId of the region within which this Routing Service is running
+	public static int regionId;
+
+	private Logger logger;
+	private String routingServiceAddress;
 	
+	//Routing Service DDS endpoint to listen for incoming commands
 	private DefaultParticipant participant;
 	private GenericDataReader<Command> listener;
-   
 	private BlockingQueue<Command> queue;
 
-	public RoutingService(String name) throws Exception{
-		this.routingServiceName=name;
-		this.domain_routes=new HashMap<String,DomainRoute>();
-		queue= new LinkedBlockingQueue<Command>();
-		participant= new DefaultParticipant(RS_ADMIN_DOMAIN_ID);
-		participant.registerType(CommandTypeSupport.get_instance());
-		Subscriber subscriber= participant.get_default_subscriber();
-		DataReaderQos qos= new DataReaderQos();
-		subscriber.get_default_datareader_qos(qos);
-		qos.user_data.value.addAllByte(TOPIC_ROUTE_STRING_CODE.getBytes());
-		listener = new GenericDataReader<Command>(subscriber,
-				participant.create_topic(COMMAND_TOPIC, CommandTypeSupport.getInstance()),
-				CommandTypeSupport.get_instance(),qos) {
-			@Override
-			public void process(Command sample, SampleInfo info) {
-				try {
-					queue.put(sample);
-				} catch (InterruptedException e1) {
-					e1.printStackTrace();
-				}
-			}
+	//Domain routes managed by this routing service instance
+	private Map<String,DomainRoute> domain_routes;
 
-		};
-		listener.receive();
-		process();
+	public RoutingService(String address) {
+		logger= Logger.getLogger(this.getClass().getSimpleName());
+		PropertyConfigurator.configure("log4j.properties");
+		this.routingServiceAddress=address;
+
+		logger.debug(String.format("Starting Routing Serice instance at:%s in region:%d",
+				routingServiceAddress,regionId));
+
+		domain_routes=new HashMap<String,DomainRoute>();
+		queue= new LinkedBlockingQueue<Command>();
+		initializeListener();
+	}
+
+	private void initializeListener(){
+		logger.debug("Initializing Routing Service entities");
+		try{
+			//Creating DDS Domain Participant
+			participant= new DefaultParticipant(RS_ADMIN_DOMAIN_ID);
+			//Registering Command Datatype
+			participant.registerType(CommandTypeSupport.get_instance());
+			//Creating a Subscriber to receive Commands
+			Subscriber subscriber= participant.get_default_subscriber();
+			//Setting user data qos to specify that this is an infrastructure end-point
+			DataReaderQos qos = new DataReaderQos();
+			subscriber.get_default_datareader_qos(qos);
+			qos.user_data.value.addAllByte(INFRASTRUCTURE_NODE_IDENTIFIER.getBytes());
+			
+			//Create a DataReader and listener to receive Commands
+			listener = new GenericDataReader<Command>(subscriber,
+					participant.create_topic(COMMAND_TOPIC, CommandTypeSupport.getInstance()),
+					CommandTypeSupport.get_instance(), qos) {
+				@Override
+				public void process(Command sample, SampleInfo info) {
+					try {
+						queue.put(sample);
+					} catch (Exception e) {
+						logger.error(e.getMessage(),e);
+					}
+				}
+			};
+			//start listening for incoming commands
+			listener.receive();
+		}catch(Exception e){
+			logger.error(e.getMessage(),e);
+		}
+		
 	}
 	public void process(){
 		while (true) {
 			try {
 				Command sample = queue.take();
-				System.out.println("Received command:" + sample.command);
-				if (sample.command.equals(COMMAND_CREATE_DOMAIN_ROUTE)) {
-					String[] args = sample.arguments.split(",");
-					createDomainRoute(args[0], args[1]);
-				} else if (sample.command.equals(COMMAND_CREATE_TOPIC_SESSION)) {
-					String[] args = sample.arguments.split(",");
-					createTopicSession(args[0], args[1], args[2], args[3]);
-				} else if (sample.command.equals(COMMAND_ADD_PEER)) {
-					String[] args = sample.arguments.split(",");
-					addPeer(args[0], args[1], Boolean.parseBoolean(args[2]));
+				String command= sample.command;
+				String[] args = sample.arguments.split(",");
+				
+				logger.debug("***************");
 
-				} else if (sample.command.equals(COMMAND_DELETE_PEER)) {
-					String[] args = sample.arguments.split(",");
+				if (command.equals(COMMAND_CREATE_DOMAIN_ROUTE)) {
+					logger.debug(String.format("Routing Service received Command:%s with arguments:"
+							+ "domainRouteName:%s,domainRouteType:%s",command,args[0],args[1]));
+					createDomainRoute(args[0], args[1]);
+				} 
+				else if (command.equals(COMMAND_CREATE_TOPIC_SESSION)) {
+					logger.debug(String.format("Routing Service received Command:%s with arguments:"
+							+ "domainRouteName:%s,topicName:%s, typeName:%s, sessionType:%s",
+							command,args[0],args[1],args[2],args[3]));
+					createTopicSession(args[0], args[1], args[2], args[3]);
+				}
+				else if(command.equals(COMMAND_DELETE_TOPIC_SESSION)){
+					logger.debug(String.format("Routing Service received Command:%s with arguments:"
+							+ "domainRouteName:%s,topicName:%s, typeName:%s, sessionType:%s",
+							command,args[0],args[1],args[2],args[3]));
+					deleteTopicSession(args[0],args[1],args[2],args[3]);
+				}
+				else if (command.equals(COMMAND_ADD_PEER)) {
+					logger.debug(String.format("Routing Service received Command:%s with arguments:"
+							+ "domainRouteName:%s, peerLocator:%s, isFirstParticipant:%s",
+							command,args[0],args[1],args[2]));
+					addPeer(args[0], args[1], Boolean.parseBoolean(args[2]));
+				}
+				else if (command.equals(COMMAND_DELETE_PEER)) {
+					logger.debug(String.format("Routing Service received Command:%s with arguments:"
+							+ "domainRouteName:%s, peerLocator:%s, isFirstParticipant:%s",
+							command,args[0],args[1],args[2]));
 					removePeer(args[0], args[1], Boolean.parseBoolean(args[2]));
-				} else {
-					System.out.println("Command not recognized");
+				}
+				else {
+					logger.error(String.format("Routing Service received invalid command:%s", sample.command));
 				}
 			} catch (Exception e) {
-				System.out.println(e.getMessage());
+				logger.error(e.getMessage(),e);
 			}
 		}
 	}
 
-	public void addPeer(String domainRouteName,String locator,boolean isFirstParticipant){
-		domain_routes.get(domainRouteName).addPeer(locator, isFirstParticipant);
-	}
-
-	public void removePeer(String domainRouteName,String locator,boolean isFirstParticipant){
-		domain_routes.get(domainRouteName).removePeer(locator, isFirstParticipant);
-	}
-	
 	public void createDomainRoute(String domainRouteName,String type) throws Exception
 	{
 		DomainRoute route=new DomainRoute(domainRouteName,type);
 		domain_routes.put(domainRouteName, route);
 	}
+
+	public void addPeer(String domainRouteName,String locator,boolean isFirstParticipant) throws Exception{
+		DomainRoute route=domain_routes.getOrDefault(domainRouteName, null);
+		if(route !=null){
+			route.addPeer(locator, isFirstParticipant);
+		}
+		else{
+			logger.error(String.format("addPeer error. domainRouteName:%s does not exist\n",domainRouteName));
+		}
+	}
+
+	public void removePeer(String domainRouteName,String locator,boolean isFirstParticipant) throws Exception{
+		DomainRoute route=domain_routes.getOrDefault(domainRouteName, null);
+		if(route !=null){
+			route.removePeer(locator, isFirstParticipant);
+		}else{
+			logger.error(String.format("removePeer error. domainRouteName:%s does not exist\n",domainRouteName));
+		}
+	}
 	
 	public void createTopicSession(String domainRouteName,String topic_name,
 			String type_name,String session_type) throws Exception{
-		domain_routes.get(domainRouteName).createTopicSession(topic_name, type_name, session_type);
-	}
 
-	public String getName()
-	{
-		return routingServiceName;
+		DomainRoute route=domain_routes.getOrDefault(domainRouteName, null);
+		if(route !=null){
+			route.createTopicSession(topic_name, type_name, session_type);
+		}else{
+			logger.error(String.format("createTopicSession error. domainRouteName:%s does not exist\n",domainRouteName));
+		}
 	}
+	
+	public void deleteTopicSession(String domainRouteName, String topic_name,
+			String type_name, String session_type) throws Exception{
+
+		DomainRoute route=domain_routes.getOrDefault(domainRouteName, null);
+		if(route !=null){
+			route.deleteTopicSession(topic_name, type_name, session_type);
+		}else{
+			logger.error(String.format("deleteTopicSession error. domainRouteName:%s does not exist\n",domainRouteName));
+		}
+	}
+	
 	public static void main(String args[]){
 		try {
 			String address= InetAddress.getLocalHost().getHostAddress();
+			regionId=Integer.parseInt(address.split("\\.")[2]);
 			RoutingService rs= new RoutingService(address);
-			while(true){
-				Thread.sleep(1000);
-			}
-
+			rs.process();
 		} catch (Exception e) {
 			e.printStackTrace();
 		}

@@ -17,7 +17,6 @@ import com.rti.dds.subscription.InstanceStateKind;
 import com.rti.dds.subscription.SampleInfo;
 import com.rti.dds.subscription.builtin.SubscriptionBuiltinTopicData;
 import com.rti.dds.subscription.builtin.SubscriptionBuiltinTopicDataDataReader;
-
 import edu.vanderbilt.kharesp.pubsubcoord.routing.RoutingService;
 import edu.vanderbilt.kharesp.pubsubcoord.routing.RoutingServiceAdministrator;
 import edu.vanderbilt.kharesp.pubsubcoord.routing.TopicSession;
@@ -96,7 +95,7 @@ public class BuiltinSubscriberListener extends DataReaderAdapter {
                  new String(subscription_builtin_topic_data.user_data.value.toArrayByte(null));
 
          //Process only if this subscriber is a client subscriber in our local domain 
-         if (!(userData.equals(RoutingService.TOPIC_ROUTE_STRING_CODE))) {
+         if (!(userData.equals(RoutingService.INFRASTRUCTURE_NODE_IDENTIFIER))) {
         	 //Cache topic name of discovered Subscriber's topic 
         	 String topic=subscription_builtin_topic_data.topic_name.replaceAll("\\s", "");
 
@@ -157,11 +156,11 @@ public class BuiltinSubscriberListener extends DataReaderAdapter {
    	 		
    	 		logger.debug(String.format("Removing topic session for %s as subscriber count is 0\n", topic));
    	 		if(emulated_broker){
-   	 			//rs.deleteTopicSession(String.format("%s::%sPublicationSession",
-   	 			//	subDomainRouteName,subscription_builtin_topic_data.topic_name));
+   	 			rs.deleteTopicSession(subDomainRouteName,subscription_builtin_topic_data.topic_name,
+   	 					subscription_builtin_topic_data.type_name,TopicSession.PUBLICATION_SESSION);
    	 		}else{
-   	 			//rs.deleteTopicSession(String.format("%s::%sPublicationSession",
-   	 			//	domainRouteName,subscription_builtin_topic_data.topic_name));
+   	 			rs.deleteTopicSession(domainRouteName,subscription_builtin_topic_data.topic_name,
+   	 					subscription_builtin_topic_data.type_name,TopicSession.PUBLICATION_SESSION);
    	 		}
    	 	
    	 		//Remove listener for RB assignment if subscriber count=0
@@ -181,14 +180,18 @@ public class BuiltinSubscriberListener extends DataReaderAdapter {
    	 		HashSet<String> topics= rb_topics_map.getOrDefault(RB_address,null);
    	 		if (topics!=null){
    	 			topics.remove(topic_path);
-   	 			/*if(topics.size()==0){
+   	 			if(topics.size()==0){
    	 				//remove RB as peer 
    	 				logger.debug(String.format("Local domain is not connected to RB:%s for any topics.\n"
    	 						+ "Hence, removing RB:%s as peer.\n",RB_address,RB_address));
    	 				String rbLocator = "tcpv4_wan://" + RB_address + ":" + RB_P2_BIND_PORT;
-   	 				rs.removePeer(domainRouteName,rbLocator,false);
+   	 				if(emulated_broker){
+   	 					rs.removePeer(subDomainRouteName,rbLocator,false);
+   	 				}else{
+   	 					rs.removePeer(domainRouteName,rbLocator,false);
+   	 				}
    	 				rb_topics_map.remove(RB_address);
-   	 			}*/
+   	 			}
    	 		}
    	 		
    	 	}

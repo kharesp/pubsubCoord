@@ -247,10 +247,28 @@ public class RoutingBroker {
                     case CHILD_REMOVED: {
                     	String eb_path=event.getData().getPath();
                     	String topic= eb_path.split("/")[2];
+                    	String eb_address= eb_path.split("/")[4];
+                    	String eb_locator;
+                    	if (emulated_broker){
+                    		eb_locator="tcpv4_wan://"+eb_address+":"+EB_P2_PUB_BIND_PORT;
+                    	}
+                    	else{
+                    		eb_locator="tcpv4_wan://"+eb_address+":"+EB_P2_BIND_PORT;
+                    	}
                     	logger.debug(String.format("EB:%s was removed\n", eb_path));
                     	
                     	PublicationBuiltinTopicData publication_builtin_topic_data= 
                     			(PublicationBuiltinTopicData) CuratorHelper.deserialize(event.getData().getData());
+                    	
+                    	//remove this topic from p1_eb_topics_map
+                    	if(p1_eb_topics_map.containsKey(eb_address)){
+                    		p1_eb_topics_map.get(eb_address).remove(topic);
+                    		if(p1_eb_topics_map.get(eb_address).size()==0){
+                    			//if there are no published topics for which we are interfacing with this region
+                    			rs.removePeer(domainRouteName, eb_locator, true);
+                    			p1_eb_topics_map.remove(eb_address);
+                    		}
+                    	}
 
                     	PathChildrenCache topic_pub_children_cache= topic_publishersChildrenCache_map.get(topic);
                     	topic_pub_children_cache.rebuild();
@@ -263,8 +281,8 @@ public class RoutingBroker {
                     			logger.debug(String.format("Publishing domains for topic:%s do not exist.\n"
                     					+ "Removing topic session:%s\n",topic,String.format("%s::%sTopicSession",
                     							domainRouteName,publication_builtin_topic_data.topic_name)));
-                    			//rs.deleteTopicSession(String.format("%s::%sTopicSession",
-                    					//domainRouteName,publication_builtin_topic_data.topic_name) );
+                    			rs.deleteTopicSession(domainRouteName,publication_builtin_topic_data.topic_name,
+                    					publication_builtin_topic_data.type_name,TopicSession.SUBSCRIPTION_SESSION);
                     		}
                     	}
                     	
@@ -333,8 +351,25 @@ public class RoutingBroker {
                     case CHILD_REMOVED: {
                     	String eb_path=event.getData().getPath();
                     	String topic= eb_path.split("/")[2];
+                    	String eb_address= eb_path.split("/")[4];
+                    	String eb_locator;
+                    	if(emulated_broker){
+                    		eb_locator="tcpv4_wan://"+eb_address+":"+EB_P2_SUB_BIND_PORT;
+                    	}
+                    	else{
+                    		eb_locator="tcpv4_wan://"+eb_address+":"+EB_P2_BIND_PORT;
+                    	}
 
                     	logger.debug(String.format("EB:%s was removed\n", eb_path));
+                    	
+                    	if(p2_eb_topics_map.containsKey(eb_address)){
+                    		p2_eb_topics_map.get(eb_address).remove(topic);
+                    		if(p2_eb_topics_map.get(eb_address).size()==0){
+                    			//Not interfacing with this region for any subscribed topics
+                    			rs.removePeer(domainRouteName, eb_locator, false);
+                    			p2_eb_topics_map.remove(eb_address);
+                    		}
+                    	}
                     	
                     	SubscriptionBuiltinTopicData subscription_builtin_topic_data=
                     			(SubscriptionBuiltinTopicData) CuratorHelper.deserialize(event.getData().getData());
@@ -350,8 +385,8 @@ public class RoutingBroker {
                     			logger.debug(String.format("Subscribing domains for topic:%s do not exist.\n"
                     					+ "Removing topic session:%s\n",topic,String.format("%s::%sTopicSession",
                     							domainRouteName,subscription_builtin_topic_data.topic_name)));
-                    			//rs.deleteTopicSession(String.format("%s::%sTopicSession",
-                    			//		domainRouteName,subscription_builtin_topic_data.topic_name) );
+                    			rs.deleteTopicSession(domainRouteName,subscription_builtin_topic_data.topic_name,
+                    					subscription_builtin_topic_data.type_name,TopicSession.SUBSCRIPTION_SESSION);
                     		}
                     	}
                         break;
