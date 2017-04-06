@@ -15,16 +15,16 @@ public class LeaderThread implements Runnable {
 	private final LeaderLatch leaderLatch;
 	private PathChildrenCache topicChildrenCache;
 	private PathChildrenCache rbChildrenCache;
-	private CuratorFramework client;
+	private CuratorHelper client;
 	private Logger logger;
 	private String rbAddress;
 
-	LeaderThread(CuratorFramework curatorClient, String rbAddress) {
+	LeaderThread(CuratorHelper client, String rbAddress) {
 		//configure logger
 		this.rbAddress=rbAddress;
 		logger=LogManager.getLogger(this.getClass().getSimpleName());
-		client = curatorClient;
-		leaderLatch = new LeaderLatch(client, CuratorHelper.LEADER_PATH, rbAddress);
+		this.client = client;
+		leaderLatch = client.leaderLatch(CuratorHelper.LEADER_PATH, rbAddress);
 	}
 
 	public void run() {
@@ -34,7 +34,7 @@ public class LeaderThread implements Runnable {
 			leaderLatch.start();
 			// Block until leadership is acquired
 			leaderLatch.await();
-			// Do some work if this routing broker is elected as a leader
+			// Do work if this routing broker is elected as a leader
 			logger.debug(String.format("Routing broker:%s becomes the leader\n",rbAddress));
 			doWork();
 		} catch (Exception e) {
@@ -44,19 +44,17 @@ public class LeaderThread implements Runnable {
 
 	void doWork() {
 		try {
-			// Create a cache for topics (to detect events of creation and
-			// deletion of topics)
+			// Create a cache for topics (to detect events of creation and deletion of topics)
 			logger.debug(String.format("Leader thread for RB:%s installing listener for topics path:%s\n",
 					rbAddress,CuratorHelper.TOPIC_PATH));
-			topicChildrenCache = new PathChildrenCache(client, CuratorHelper.TOPIC_PATH, true);
+			topicChildrenCache = client.pathChildrenCache(CuratorHelper.TOPIC_PATH, true);
 			topicChildrenCache.start();
 			addTopicChildrenListener(topicChildrenCache);
 
-			// Create a cache for routing brokers (to detect events of creation
-			// and deletion of rb)
+			// Create a cache for routing brokers (to detect events of creation and deletion of rb)
 			logger.debug(String.format("Leader thread for RB:%s installing listener for RoutingBroker path:%s\n",
 					rbAddress,CuratorHelper.ROUTING_BROKER_PATH));
-			rbChildrenCache = new PathChildrenCache(client, CuratorHelper.ROUTING_BROKER_PATH, true);
+			rbChildrenCache = client.pathChildrenCache(CuratorHelper.ROUTING_BROKER_PATH, true);
 			rbChildrenCache.start();
 		} catch (Exception e) {
 			logger.error(e.getMessage(),e);
@@ -74,7 +72,7 @@ public class LeaderThread implements Runnable {
 					String topic_path=event.getData().getPath();
 					String topic=topic_path.split("/")[2];
 
-					logger.debug(String.format("Topic:%s created\n",topic));
+					logger.debug(String.format("Topic:%s was created\n",topic));
 
 					// Update this rbChildrenCache (Synchronizing) to get the updated list of RBs
 					rbChildrenCache.rebuild();

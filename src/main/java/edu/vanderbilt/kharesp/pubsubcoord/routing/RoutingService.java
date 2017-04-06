@@ -20,15 +20,15 @@ public class RoutingService {
 	public static final int RS_ADMIN_DOMAIN_ID = 55;
 	//Topic on which Routing Service receives control commands
 	public static final String COMMAND_TOPIC="command";
-	//user_data qos identifier to distinguish infrastructure entities from client endpoints 
+	//user_data qos identifier to distinguish infrastructure entities from client end-points 
 	public static final String INFRASTRUCTURE_NODE_IDENTIFIER = "k";
 
 	//Command types
 	public static final String COMMAND_CREATE_DOMAIN_ROUTE="create_domain_route";
-	public static final String COMMAND_CREATE_TOPIC_SESSION="create_topic_session";
-	public static final String COMMAND_DELETE_TOPIC_SESSION="delete_topic_session";
 	public static final String COMMAND_ADD_PEER="add_peer";
 	public static final String COMMAND_DELETE_PEER="delete_peer";
+	public static final String COMMAND_CREATE_TOPIC_SESSION="create_topic_session";
+	public static final String COMMAND_DELETE_TOPIC_SESSION="delete_topic_session";
 
 	//regionId of the region within which this Routing Service is running
 	public static int regionId;
@@ -36,7 +36,7 @@ public class RoutingService {
 	private Logger logger;
 	private String routingServiceAddress;
 	
-	//Routing Service DDS endpoint to listen for incoming commands
+	//Routing Service DDS endpoints to listen for incoming commands
 	private DefaultParticipant participant;
 	private GenericDataReader<Command> listener;
 	private BlockingQueue<Command> queue;
@@ -46,8 +46,9 @@ public class RoutingService {
 
 	public RoutingService(String address) {
 		logger= Logger.getLogger(this.getClass().getSimpleName());
-		PropertyConfigurator.configure("log4j.properties");
+		
 		this.routingServiceAddress=address;
+		regionId=Integer.parseInt(address.split("\\.")[2]);
 
 		logger.debug(String.format("Starting Routing Serice instance at:%s in region:%d",
 				routingServiceAddress,regionId));
@@ -91,9 +92,11 @@ public class RoutingService {
 		}
 		
 	}
+	
 	public void process(){
 		while (true) {
 			try {
+				//take command from message queue or block if queue is empty
 				Command sample = queue.take();
 				String command= sample.command;
 				String[] args = sample.arguments.split(",");
@@ -105,18 +108,6 @@ public class RoutingService {
 							+ "domainRouteName:%s,domainRouteType:%s",command,args[0],args[1]));
 					createDomainRoute(args[0], args[1]);
 				} 
-				else if (command.equals(COMMAND_CREATE_TOPIC_SESSION)) {
-					logger.debug(String.format("Routing Service received Command:%s with arguments:"
-							+ "domainRouteName:%s,topicName:%s, typeName:%s, sessionType:%s",
-							command,args[0],args[1],args[2],args[3]));
-					createTopicSession(args[0], args[1], args[2], args[3]);
-				}
-				else if(command.equals(COMMAND_DELETE_TOPIC_SESSION)){
-					logger.debug(String.format("Routing Service received Command:%s with arguments:"
-							+ "domainRouteName:%s,topicName:%s, typeName:%s, sessionType:%s",
-							command,args[0],args[1],args[2],args[3]));
-					deleteTopicSession(args[0],args[1],args[2],args[3]);
-				}
 				else if (command.equals(COMMAND_ADD_PEER)) {
 					logger.debug(String.format("Routing Service received Command:%s with arguments:"
 							+ "domainRouteName:%s, peerLocator:%s, isFirstParticipant:%s",
@@ -128,6 +119,18 @@ public class RoutingService {
 							+ "domainRouteName:%s, peerLocator:%s, isFirstParticipant:%s",
 							command,args[0],args[1],args[2]));
 					removePeer(args[0], args[1], Boolean.parseBoolean(args[2]));
+				}
+				else if (command.equals(COMMAND_CREATE_TOPIC_SESSION)) {
+					logger.debug(String.format("Routing Service received Command:%s with arguments:"
+							+ "domainRouteName:%s,topicName:%s, typeName:%s, sessionType:%s",
+							command,args[0],args[1],args[2],args[3]));
+					createTopicSession(args[0], args[1], args[2], args[3]);
+				}
+				else if(command.equals(COMMAND_DELETE_TOPIC_SESSION)){
+					logger.debug(String.format("Routing Service received Command:%s with arguments:"
+							+ "domainRouteName:%s,topicName:%s, typeName:%s, sessionType:%s",
+							command,args[0],args[1],args[2],args[3]));
+					deleteTopicSession(args[0],args[1],args[2],args[3]);
 				}
 				else {
 					logger.error(String.format("Routing Service received invalid command:%s", sample.command));
@@ -187,8 +190,8 @@ public class RoutingService {
 	
 	public static void main(String args[]){
 		try {
+			PropertyConfigurator.configure("log4j.properties");
 			String address= InetAddress.getLocalHost().getHostAddress();
-			regionId=Integer.parseInt(address.split("\\.")[2]);
 			RoutingService rs= new RoutingService(address);
 			rs.process();
 		} catch (Exception e) {

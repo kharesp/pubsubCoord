@@ -12,7 +12,7 @@ public class RoutingServiceAdministrator {
 	private DefaultParticipant participant;
 	private GenericDataWriter<Command> writer;
 	
-	public RoutingServiceAdministrator(String name) throws Exception{
+	public RoutingServiceAdministrator() throws Exception{
 		//DDS participant for sending commands to Routing Service operating in RS_ADMIN_DOMAIN_ID 
 		participant= new DefaultParticipant(RoutingService.RS_ADMIN_DOMAIN_ID);
 		//register Command type

@@ -5,7 +5,6 @@ import java.net.InetAddress;
 import java.util.HashMap;
 import java.util.Map;
 import org.apache.log4j.Logger;
-import org.apache.log4j.PropertyConfigurator;
 import com.rti.dds.domain.DomainParticipantFactory;
 import com.rti.dds.domain.DomainParticipantQos;
 import com.rti.dds.infrastructure.PropertyQosPolicyHelper;
@@ -44,7 +43,6 @@ public class DomainRoute {
 		this.routeType=routeType;
 
 		logger= Logger.getLogger(this.getClass().getSimpleName());
-		PropertyConfigurator.configure("log4j.properties");
 
 		subscription_topic_sessions=new HashMap<String, TopicSession<?>>();
 		publication_topic_sessions=new HashMap<String, TopicSession<?>>();
@@ -305,7 +303,6 @@ public class DomainRoute {
 	public String getName(){
 		return domainRouteName;
 	}
-	
 	
 	public String getType(){
 		return routeType;

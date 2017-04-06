@@ -3,7 +3,6 @@ package edu.vanderbilt.kharesp.pubsubcoord.routing;
 
 import java.util.Arrays;
 import org.apache.log4j.Logger;
-import org.apache.log4j.PropertyConfigurator;
 import com.rti.dds.infrastructure.StringSeq;
 import com.rti.dds.publication.DataWriterQos;
 import com.rti.dds.publication.Publisher;
@@ -24,12 +23,11 @@ public class TopicSession<T extends BaseDataSample>{
 	
 	private DefaultParticipant firstParticipant;
 	private DefaultParticipant secondParticipant;
-	private GenericDataWriter<T> dw;
-	private GenericDataReader<T> dr;
-	private String sessionType;
-
 	public Publisher publisher;
 	public Subscriber subscriber;
+	private GenericDataWriter<T> dw;
+	private GenericDataReader<T> dr;
+
 	public Topic t1;
 	public Topic t2;
 	public ContentFilteredTopic cft;
@@ -37,7 +35,8 @@ public class TopicSession<T extends BaseDataSample>{
 	
 	private Logger logger;
 	private String sessionName;
-	
+	private String sessionType;
+
 	public TopicSession(String session_type,Topic t1,Topic t2,TypeSupportImpl typeSupport,
 			DefaultParticipant p1,DefaultParticipant p2) throws Exception{
 		this.sessionType=session_type;
@@ -49,8 +48,8 @@ public class TopicSession<T extends BaseDataSample>{
 		this.secondParticipant=p2;
 		
 		logger= Logger.getLogger(this.getClass().getSimpleName());
-		PropertyConfigurator.configure("log4j.properties");
 
+		//Subscription_session: Subscriber in first participant and publisher in second participant
 		if(session_type.equals(SUBSCRIPTION_SESSION)){
 			subscriber= firstParticipant.get_default_subscriber();
 			DataReaderQos readerQos= new DataReaderQos();
@@ -71,7 +70,9 @@ public class TopicSession<T extends BaseDataSample>{
 			};
 			dr.receive();
 			
-		}else if(session_type.equals(PUBLICATION_SESSION)){
+		}
+		//Publication_session: Publisher in first participant and Subscriber in second participant
+		else if(session_type.equals(PUBLICATION_SESSION)){
 			publisher=firstParticipant.get_default_publisher();
 			DataWriterQos writerQos= new DataWriterQos();
 			publisher.get_default_datawriter_qos(writerQos);
@@ -83,6 +84,8 @@ public class TopicSession<T extends BaseDataSample>{
 			readerQos.user_data.value.addAllByte(RoutingService.INFRASTRUCTURE_NODE_IDENTIFIER.getBytes());
 
 			dw= new GenericDataWriter<T>(publisher,t1,writerQos);
+			
+			//Content filter topic to filter out messages originating in this region. 
 			String params[]={String.valueOf(RoutingService.regionId)};
 			cft= secondParticipant.create_contentfilteredtopic("cft", t2,"region_id <> %0",new StringSeq(Arrays.asList(params)));
 			dr= new GenericDataReader<T>(subscriber,cft,typeSupport,readerQos){
@@ -113,7 +116,6 @@ public class TopicSession<T extends BaseDataSample>{
 		}else{
 			logger.error(String.format("Error in deleting endpoints. Session type:%s for topic session:%s not recognized\n",
 					sessionType,sessionName));
-			
 		}
 		logger.debug(String.format("Deleted DR,DW,Publisher and Subscriber for session:%s and type:%s", sessionName,sessionType));
 		

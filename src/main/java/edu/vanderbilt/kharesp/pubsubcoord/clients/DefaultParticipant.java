@@ -94,13 +94,6 @@ public class DefaultParticipant {
     	participant.delete_contentfilteredtopic(cft);
     }
     
-    public void shutdown() throws Exception{
-    	if (participant!=null){
-    		participant.delete_contained_entities();
-    		DomainParticipantFactory.get_instance().delete_participant(participant);
-    	}
-    }
-    
     public void registerType(TypeSupportImpl typeSupport) throws Exception{
     	typeSupport.register_typeI(participant, typeSupport.get_type_nameI());
     }
@@ -116,6 +109,13 @@ public class DefaultParticipant {
 
     public void remove_peer(String locator) throws Exception{
     	participant.remove_peer(locator);
+    }
+
+    public void shutdown() throws Exception{
+    	if (participant!=null){
+    		participant.delete_contained_entities();
+    		DomainParticipantFactory.get_instance().delete_participant(participant);
+    	}
     }
     
     public DomainParticipant participant(){

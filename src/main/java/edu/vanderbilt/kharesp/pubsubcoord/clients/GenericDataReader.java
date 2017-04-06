@@ -63,14 +63,9 @@ public abstract class GenericDataReader<T extends Copyable> {
 		infoSeq = new SampleInfoSeq();
 	}
 	
-	private class DataReaderListener extends DataReaderAdapter{
-		public void on_data_available(DataReader reader){
-			take();
-		}
-	}
-	
 	public void receive() throws Exception{
 		DataReaderListener listener= new DataReaderListener();
+		//register listener to start receiving data
 		reader.set_listener(listener, StatusKind.STATUS_MASK_ALL);
 	}
 	
@@ -105,11 +100,17 @@ public abstract class GenericDataReader<T extends Copyable> {
 			reader.return_loan_untyped(dataSeq, infoSeq);
 		}
 	}
-	
+
 	public abstract void process(T sample,SampleInfo info);
 	
 	public void delete_datareader() throws Exception{
 		subscriber.delete_datareader(reader);
+	}
+	
+	private class DataReaderListener extends DataReaderAdapter{
+		public void on_data_available(DataReader reader){
+			take();
+		}
 	}
    
 }

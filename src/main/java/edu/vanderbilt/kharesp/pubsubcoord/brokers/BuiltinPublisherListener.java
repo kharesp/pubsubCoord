@@ -3,7 +3,6 @@ package edu.vanderbilt.kharesp.pubsubcoord.brokers;
 import java.io.IOException;
 import java.util.HashMap;
 import java.util.HashSet;
-import org.apache.curator.framework.CuratorFramework;
 import org.apache.curator.framework.recipes.cache.NodeCache;
 import org.apache.curator.framework.recipes.cache.NodeCacheListener;
 import org.apache.curator.utils.ZKPaths;
@@ -17,30 +16,23 @@ import com.rti.dds.subscription.DataReader;
 import com.rti.dds.subscription.DataReaderAdapter;
 import com.rti.dds.subscription.InstanceStateKind;
 import com.rti.dds.subscription.SampleInfo;
-
 import edu.vanderbilt.kharesp.pubsubcoord.routing.RoutingService;
 import edu.vanderbilt.kharesp.pubsubcoord.routing.RoutingServiceAdministrator;
 import edu.vanderbilt.kharesp.pubsubcoord.routing.TopicSession;
 
 public class BuiltinPublisherListener extends DataReaderAdapter {
 
-    
-    //Port at which RBs listen for incoming/publisher data
-    private static final String RB_P1_BIND_PORT = "8500";
-    
-    //This local domain's DomainRouteName's Prefix
-    private static final String DOMAIN_ROUTE_NAME_PREFIX = "EdgeBrokerDomainRoute";
-    private static final String LOCAL_DOMAIN_ROUTE_NAME_PREFIX = "LocalEdgeBrokerDomainRoute";
-    private static final String PUB_DOMAIN_ROUTE_NAME_PREFIX = "PubEdgeBrokerDomainRoute";
-
-
+    //flag to determine whether we emulating a broker
     private boolean emulated_broker;
-	private String ebAddress;
+    
+	//Names of domain routes maintained by the EB
 	private String domainRouteName;
 	private String localDomainRouteName;
 	private String pubDomainRouteName;
+
+	private String ebAddress;
 	private Logger logger;
-	private CuratorFramework client;
+	private CuratorHelper client;
 	private RoutingServiceAdministrator rs;
 
 	private PublicationBuiltinTopicData publication_builtin_topic_data = new PublicationBuiltinTopicData();
@@ -48,19 +40,26 @@ public class BuiltinPublisherListener extends DataReaderAdapter {
 	
 	//map to keep track of number of publishers for each topic
 	private HashMap<String, Integer> topic_publisherCount_map= new HashMap<>();
+
 	//map to keep track of which instance handle belongs to which topic
 	private HashMap<String,String> instanceHandle_topic_map= new HashMap<String,String>();
+
 	//map to keep track of topic node caches for different topics operational in this local domain
 	private HashMap<String, NodeCache> topic_topicCache_map = new HashMap<String, NodeCache>();
+	
 	//map to keep track of RBs this local domain is interfacing with and for which topics
 	private HashMap<String,HashSet<String>> rb_topics_map=new HashMap<String,HashSet<String>>();
 
-	public BuiltinPublisherListener(String ebAddress,CuratorFramework client,
+	public BuiltinPublisherListener(String ebAddress,CuratorHelper client,
 			RoutingServiceAdministrator rs,boolean emulated_broker){
+		//This EB's address
 		this.ebAddress=ebAddress;
-		domainRouteName=DOMAIN_ROUTE_NAME_PREFIX+"@"+ebAddress;
-		localDomainRouteName= LOCAL_DOMAIN_ROUTE_NAME_PREFIX + "@" + ebAddress;
-		pubDomainRouteName= PUB_DOMAIN_ROUTE_NAME_PREFIX + "@" + ebAddress;
+
+		//Initialize domain route names
+		domainRouteName=EdgeBroker.DOMAIN_ROUTE_NAME_PREFIX+"@"+ebAddress;
+		localDomainRouteName= EdgeBroker.LOCAL_DOMAIN_ROUTE_NAME_PREFIX + "@" + ebAddress;
+		pubDomainRouteName= EdgeBroker.PUB_DOMAIN_ROUTE_NAME_PREFIX + "@" + ebAddress;
+
 		logger=LogManager.getLogger(this.getClass().getSimpleName());
 		this.rs=rs;
 		this.client=client;
@@ -73,6 +72,7 @@ public class BuiltinPublisherListener extends DataReaderAdapter {
 			while (true) {
 				builtin_reader.take_next_sample(publication_builtin_topic_data, info);
 				if (info.instance_state == InstanceStateKind.ALIVE_INSTANCE_STATE) {
+					//A new publisher is discovered
 					logger.debug("Built-in Reader: found publisher: "+
 							"\n\ttopic_name->"
 							+ publication_builtin_topic_data.topic_name +
@@ -82,6 +82,7 @@ public class BuiltinPublisherListener extends DataReaderAdapter {
 				}
 				if (info.instance_state == InstanceStateKind.NOT_ALIVE_DISPOSED_INSTANCE_STATE
 						|| info.instance_state == InstanceStateKind.NOT_ALIVE_NO_WRITERS_INSTANCE_STATE) {
+					//A publisher is deleted 
 					logger.debug(
 							"Built-in Reader: publisher was deleted:" + 
 					        "\n\tinstance_handle->"+
@@ -93,6 +94,7 @@ public class BuiltinPublisherListener extends DataReaderAdapter {
 		} catch (RETCODE_NO_DATA noData) {
 			return;
 		} catch (Exception e) {
+			logger.error(e.getMessage(),e);
 		}
 
 	}
@@ -103,10 +105,11 @@ public class BuiltinPublisherListener extends DataReaderAdapter {
 
          //Process only if this publisher is a client publisher in our local domain 
          if (!(userData.equals(RoutingService.INFRASTRUCTURE_NODE_IDENTIFIER))) {
+
         	 //Cache topic name of discovered Publisher
         	 String topic=publication_builtin_topic_data.topic_name.replaceAll("\\s", "");
 
-        	 //Add this instance handle to topic mapping to instanceHandle_topic map
+        	 //Add this instance handle to instanceHandle_topic map
         	 instanceHandle_topic_map.put(info.instance_handle.toString(), topic);
 
         	 //Update the current count of publishers for this topic in the domain
@@ -122,8 +125,10 @@ public class BuiltinPublisherListener extends DataReaderAdapter {
         	 
         	 //Update the current publisher count for topic t at ZK path /topics/t/pub/ebLocator
         	 if (topic_publisherCount_map.get(topic)==1){
+        		 //Create this EB znode under /topics/t/pub to signify that this region will be publishing on topic t
         		 create_EB_znode(topic,publication_builtin_topic_data);
         	 
+        		 //Create topic sessions for topic t
         		 logger.debug(String.format("Creating topic session for topic:%s\n",topic));
         		 create_topic_session(publication_builtin_topic_data.topic_name,
         				 publication_builtin_topic_data.type_name);
@@ -134,18 +139,19 @@ public class BuiltinPublisherListener extends DataReaderAdapter {
         	 install_topic_to_rb_assignment_listener(topic);
         	
          	} else {
-         		logger.debug("This publisher was created by RS\n");
+         		logger.debug("This publisher was created by an infrastructure entity\n");
          	}
 	}
 
 	private void delete_publisher(){
+
 		//retrieve the topic name for which this publisher was removed
 		String topic=instanceHandle_topic_map.getOrDefault(info.instance_handle.toString(),null);
 		if (topic==null){
 			logger.debug("This publisher was created by RS\n");
 			return;
 		}
-		//remove the instance handle 
+		//remove the instance handle from instanceHandle_topic_map 
 		instanceHandle_topic_map.remove(info.instance_handle.toString());
 
 		//update the current count of publishers for this topic
@@ -199,11 +205,13 @@ public class BuiltinPublisherListener extends DataReaderAdapter {
    	 				//remove RB as peer 
    	 				logger.debug(String.format("Local domain is not connected to RB:%s for any topics.\n"
    	 						+ "Hence, removing RB:%s as peer.\n",RB_address,RB_address));
-   	 				String rbLocator = "tcpv4_wan://" + RB_address + ":" + RB_P1_BIND_PORT;
+   	 				String rbLocator = "tcpv4_wan://" + RB_address + ":" + RoutingBroker.RB_P1_BIND_PORT;
    	 				if(emulated_broker){
    	 					rs.removePeer(pubDomainRouteName,rbLocator,false);
    	 				}else{
-   	 					rs.removePeer(domainRouteName,rbLocator,false);
+   	 					//TODO: For non-emulated scenario, there is only one domain route and removing RB
+   	 					//as peer will depend on whether there are any subscribers interested in any of the topics
+   	 					//hosted on RB in this region.
    	 				}
    	 				rb_topics_map.remove(RB_address);
    	 			}
@@ -214,32 +222,29 @@ public class BuiltinPublisherListener extends DataReaderAdapter {
 	
 	private void create_EB_znode(String topic,
 		PublicationBuiltinTopicData publication_builtin_data){
+		
 		//ensure topic path /topics/t/pub exists
-	    ensure_topic_path_exists(topic);
 		String parent_path= (CuratorHelper.TOPIC_PATH+"/"+topic+"/pub");
-		String znode_name=ebAddress;
-		String path=ZKPaths.makePath(parent_path, znode_name);
-		try {
-			client.create().
-				creatingParentsIfNeeded().
-				withMode(CreateMode.PERSISTENT).
-				forPath(path, CuratorHelper.serialize(publication_builtin_data));
-		} catch (Exception e) {
-			logger.error(e.getMessage(),e);
-		}
+		client.ensurePathExists(parent_path);
+
+		//create this EB's znode at /topics/t/pub/ebAddress
+		client.create(parent_path+"/"+ebAddress, publication_builtin_data, CreateMode.PERSISTENT);
+		
 		logger.debug(String.format("Created EB znode for EB:%s under topic path:%s\n",
 				ebAddress,parent_path));
 	}
 	
 	private PublicationBuiltinTopicData delete_EB_znode(String topic){
 		PublicationBuiltinTopicData publication_builtin_topic_data=null;
+
 		String parent_path= (CuratorHelper.TOPIC_PATH+"/"+topic+"/pub");
 		String znode_name=ebAddress;
 		String path=ZKPaths.makePath(parent_path, znode_name);
 		try {
-			publication_builtin_topic_data=(PublicationBuiltinTopicData) CuratorHelper.
-					deserialize(client.getData().forPath(path));
-			client.delete().forPath(path);
+			publication_builtin_topic_data=(PublicationBuiltinTopicData)client.get(path);
+
+			//delete the EB's znode at /topics/t/pub/ebAddress
+			client.delete(path);
 		} catch (Exception e) {
 			logger.error(e.getMessage(),e);
 		}
@@ -250,27 +255,36 @@ public class BuiltinPublisherListener extends DataReaderAdapter {
 	}
 	
 	private void install_topic_to_rb_assignment_listener(String topic){
+
+		//This topic's path under zk
 		String topic_path=CuratorHelper.TOPIC_PATH+"/"+topic;
+
 		if (!topic_topicCache_map.containsKey(topic)){
-			NodeCache topicCache= new NodeCache(client,topic_path);
+			//Create node cache for this topic's znode
+			NodeCache topicCache= client.nodeCache(topic_path);
 			topic_topicCache_map.put(topic, topicCache);
 
-
+			//Install listener to listen for RB assignment for this topic
 			logger.debug(String.format("Installing listener for topic:%s to listen for RB assignment\n",
 					topic));
 			topicCache.getListenable().addListener(new NodeCacheListener(){
 
 				@Override
 				public void nodeChanged() throws Exception {
+					//RB to which this topic was assigned
 					 String rb_address = new String(topicCache.getCurrentData().getData());
 					 String topic_path= topicCache.getCurrentData().getPath();
+					 
 					 if (!rb_address.isEmpty()) {
 						 logger.debug(String.format("Topic:%s was assigned to RB:%s\n",topic_path,rb_address));
 
+						 //Check if we are interfacing with this RB already for some other topics
 						 if (!rb_topics_map.containsKey(rb_address)) {
 							 rb_topics_map.put(rb_address,new HashSet<String>());
 							 rb_topics_map.get(rb_address).add(topic_path);
-							 String rbLocator = "tcpv4_wan://" + rb_address + ":" + RB_P1_BIND_PORT;
+							 
+							 //We are not interfacing with this RB for any other topics, so add this RB as peer
+							 String rbLocator = "tcpv4_wan://" + rb_address + ":" + RoutingBroker.RB_P1_BIND_PORT;
 							 logger.debug(String.format("Adding RB:%s as peer\n",rbLocator));
 							 if(emulated_broker){
 								 rs.addPeer(pubDomainRouteName,rbLocator, false);
@@ -280,6 +294,7 @@ public class BuiltinPublisherListener extends DataReaderAdapter {
 							 }
 								 
 						 }else{
+							 //RB already exists as peer
 							 HashSet<String> topics=rb_topics_map.get(rb_address);
 							 topics.add(topic_path);
 							 logger.debug(String.format("RB:%s for topic:%s already exists as peer\n",
@@ -289,37 +304,14 @@ public class BuiltinPublisherListener extends DataReaderAdapter {
 				}
 			});
 			try {
+				//start topic cache
 				topicCache.start();
 			} catch (Exception e) {
-				e.printStackTrace();
+				logger.error(e.getMessage(),e);
 			}
 		}
 	}
 	
-	private void ensure_topic_path_exists(String topic){
-		String topic_subscribers_path=CuratorHelper.TOPIC_PATH+"/"+topic+"/sub";
-		String topic_publishers_path=CuratorHelper.TOPIC_PATH+"/"+topic+"/pub";
-		try {
-			if(client.checkExists().forPath(topic_subscribers_path)==null)
-			{
-				client.create().
-					creatingParentsIfNeeded().
-					forPath(topic_subscribers_path);
-				logger.debug(String.format("EB:%s created topic path for subscribers:%s\n",
-						ebAddress,topic_subscribers_path));
-			}
-			if(client.checkExists().forPath(topic_publishers_path)==null)
-			{
-				client.create().
-					creatingParentsIfNeeded().
-					forPath(topic_publishers_path);
-				logger.debug(String.format("EB:%s created topic path for publishers:%s\n",
-						ebAddress,topic_publishers_path));
-			}
-		} catch (Exception e) {
-			logger.error(e.getMessage(),e);
-		}	
-	}
 	
 	private void create_topic_session(String topic_name,String type_name){
 		if(emulated_broker){
