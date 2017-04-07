@@ -99,14 +99,14 @@ class Experiment(object):
 
     #start monitoring process on ebs
     command_string='cd %s && ansible-playbook playbooks/experiment/monitoring.yml  --limit %s\
-      --extra-vars="broker_type=eb run_id=%s"'%\
-      (metadata.ansible,','.join(self.conf.ebs),self.run_id)
+      --extra-vars="broker_type=eb run_id=%s zk_connector=%s"'%\
+      (metadata.ansible,','.join(self.conf.ebs),self.run_id,metadata.zk)
     subprocess.check_call(['bash','-c',command_string])
 
     #start monitoring process on rbs
     command_string='cd %s && ansible-playbook playbooks/experiment/monitoring.yml  --limit %s\
-      --extra-vars="broker_type=rb run_id=%s"'%\
-      (metadata.ansible,','.join(self.conf.rbs),self.run_id)
+      --extra-vars="broker_type=rb run_id=%s zk_connector=%s"'%\
+      (metadata.ansible,','.join(self.conf.rbs),self.run_id,metadata.zk)
     subprocess.check_call(['bash','-c',command_string])
    
   def start_subscribers(self):

@@ -3,8 +3,8 @@ from sys import argv
 
 def launch_pub(host,topic_count_map,sample_count,sleep_interval,run_id):
   command_string='cd %s && ansible-playbook playbooks/experiment/publisher.yml  --limit %s\
-    --extra-vars="topic_count_map=%s sample_count=%d sleep_interval=%d run_id=%s"'%\
-    (metadata.ansible,host,str(topic_count_map).replace(" ",""),sample_count,sleep_interval,run_id)
+    --extra-vars="topic_count_map=%s sample_count=%d sleep_interval=%d run_id=%s zk_connector=%s"'%\
+    (metadata.ansible,host,str(topic_count_map).replace(" ",""),sample_count,sleep_interval,run_id,metadata.zk)
   subprocess.check_call(['bash','-c',command_string])
 
 

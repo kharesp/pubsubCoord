@@ -112,7 +112,7 @@ public class ClientSubscriber {
 			
 			//create znode for this subscriber
 			String client_path=String.format("/experiment/%s/sub/region_%s/%s/%s_%s_%s", runId,region,hostName,topicName,hostName,pid);
-			client.create().forPath(client_path, new byte[0]);
+			client.create().creatingParentsIfNeeded().forPath(client_path, new byte[0]);
 			
 			logger.debug(String.format("Created znode for this subscriber at:%s",client_path));
 			

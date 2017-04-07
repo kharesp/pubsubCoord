@@ -84,13 +84,13 @@ class Infrastructure(object):
 
     #start EdgeBroker on ebs
     command_string='cd %s && ansible-playbook playbooks/experiment/eb.yml  --limit %s\
-      --extra-vars="emulated_broker=%d"'%\
-      (metadata.ansible,','.join(self.conf.ebs),1)
+      --extra-vars="zk_connector=%s emulated_broker=%d"'%\
+      (metadata.ansible,','.join(self.conf.ebs),metadata.zk,1)
     subprocess.check_call(['bash','-c',command_string])
 
     #start RoutingBroker on rbs
     command_string='cd %s && ansible-playbook playbooks/experiment/rb.yml  --limit %s\
-      --extra-vars="emulated_broker=%d"'%(metadata.ansible,','.join(self.conf.rbs),1)
+      --extra-vars="zk_connector=%s emulated_broker=%d"'%(metadata.ansible,','.join(self.conf.rbs),metadata.zk,1)
     subprocess.check_call(['bash','-c',command_string])
 
    

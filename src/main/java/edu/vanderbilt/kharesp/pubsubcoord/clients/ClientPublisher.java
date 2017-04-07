@@ -95,7 +95,7 @@ public class ClientPublisher {
 			//create znode for this publisher
 			String client_path=String.format("/experiment/%s/pub/region_%s/%s/%s_%s_%s", 
 					runId,region,hostName,topicName,hostName,pid);
-			client.create().forPath(client_path, new byte[0]);
+			client.create().creatingParentsIfNeeded().forPath(client_path, new byte[0]);
 			
 			logger.debug(String.format("Created znode for this publisher at:%s", client_path));
 
