@@ -5,8 +5,8 @@ topics_path='/topics'
 rb_path='/routingBrokers'
 experiment_path='/experiment'
 initial_samples=1500
-max_subscribers_per_host=15
-max_publishers_per_host=10
+max_subscribers_per_host=1
+max_publishers_per_host=1
 
 latency_summary_header='topic,#subscribers,\
 mean latency(ms),std_dev latency(ms),min latency(ms),max latency(ms),\

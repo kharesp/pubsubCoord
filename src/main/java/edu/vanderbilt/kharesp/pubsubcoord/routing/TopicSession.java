@@ -24,7 +24,7 @@ public class TopicSession<T extends BaseDataSample>{
 	public static final String SUBSCRIPTION_SESSION = "subscription_session";
 	public static final String PUBLICATION_SESSION = "publication_session";
 	
-	private static final String LOG_DIR="/home/ubuntu/infrastructure/rs";
+	private static final String LOG_DIR="/home/ubuntu/log/queueing";
 	
 	private DefaultParticipant firstParticipant;
 	private DefaultParticipant secondParticipant;
@@ -61,7 +61,7 @@ public class TopicSession<T extends BaseDataSample>{
 		String hostName=InetAddress.getLocalHost().getHostName();
 		new File(LOG_DIR).mkdirs();
 		String file_name = LOG_DIR + "/queueing_delay_" + 
-				domainRouteName+ "_" +
+				domainRouteName.substring(0, domainRouteName.indexOf('@'))+ "_" +
 				sessionName + "_" + 
 				session_type+ "_" +
 				hostName + ".csv";

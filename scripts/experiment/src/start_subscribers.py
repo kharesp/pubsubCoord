@@ -4,7 +4,7 @@ from sys import argv
 def launch_sub(host,topic_count_map,sample_count,run_id):
   command_string='cd %s && ansible-playbook playbooks/experiment/subscriber.yml --limit %s\
     --extra-vars="topic_count_map=%s sample_count=%d run_id=%s zk_connector=%s"'%\
-    (metadata.ansible,host,str(topic_count_map).replace(" ",""),sample_count,run_id,metadata.zk_connector)
+    (metadata.ansible,host,str(topic_count_map).replace(" ",""),sample_count,run_id,metadata.zk)
   subprocess.check_call(['bash','-c',command_string])
 
 if __name__=="__main__":

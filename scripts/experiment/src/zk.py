@@ -12,17 +12,13 @@ class Zk(object):
     self._zk.start()
 
   def clean(self):
-    #if self._zk.exists(metadata.topics_path):
-    #  self._zk.delete(metadata.topics_path,recursive=True)
+   #delete zk /topics path
+   if self._zk.exists(metadata.topics_path):
+     self._zk.delete(metadata.topics_path,recursive=True)
 
-    #if self._zk.exists(metadata.leader_path):
-    #  self._zk.delete(metadata.leader_path,recursive=True)
-
-    #if self._zk.exists(metadata.rb_path):
-    #  self._zk.delete(metadata.rb_path,recursive=True)
-
-    if self._zk.exists(metadata.experiment_path):
-      self._zk.delete(metadata.experiment_path,recursive=True)
+   #delete zk /experiment path
+   if self._zk.exists(metadata.experiment_path):
+     self._zk.delete(metadata.experiment_path,recursive=True)
 
   def stop(self):
     self._zk.stop()
@@ -62,9 +58,6 @@ class Zk(object):
       (metadata.experiment_path,self.run_id)
     self._zk.ensure_path(joined_pub_path)
 
-    #create zk path to track subscribers have left
-    #self._zk.ensure_path('%s/%s/left_sub'%(metadata.experiment_path,self.run_id))
-
     #create zk path to track monitoring processes have joined
     eb_monitoring_path='%s/%s/monitoring/eb'%(metadata.experiment_path,self.run_id)
     self._zk.ensure_path(eb_monitoring_path)
@@ -97,6 +90,7 @@ class Zk(object):
     region_joined_publisher_clients={region:0 for region in \
       self.conf.region_clientpublishers_map.keys()}
 
+    #listener callback to track joined publishers and subscribers in all regions
     def _joined_endpoint_listener(children,event):
       if event and event.type==EventType.CHILD:
         if 'sub' in event.path :
@@ -128,6 +122,7 @@ class Zk(object):
                 (metadata.experiment_path,self.run_id,region))
             return False
           
+    #listener callback to open zk barrier: sub,pub, finished or monitoring
     def _open_barrier(children,event):
       if event and event.type==EventType.CHILD:
         if 'joined_sub' in event.path:
@@ -160,14 +155,17 @@ class Zk(object):
               self.monitoring_barrier.remove()
             return False
 
+    #watch to open subscriber barrier once all subscribers in all regions have joined
     sub_barrier_opener_watch=ChildrenWatch(client=self._zk,\
       path='%s/%s/joined_sub'%(metadata.experiment_path,self.run_id),\
       func=_open_barrier,send_event=True)
 
+    #watch to open publisher barrier once all publishers in all regions have joined
     pub_barrier_opener_watch=ChildrenWatch(client=self._zk,\
       path='%s/%s/joined_pub'%(metadata.experiment_path,self.run_id),\
       func=_open_barrier,send_event=True)
 
+    #watch to open monitoring barrier when all Monitors have exited
     eb_monitoring_watch=ChildrenWatch(client=self._zk,\
       path='%s/%s/monitoring/eb'%(metadata.experiment_path,self.run_id),\
       func=_open_barrier,send_event=True)
@@ -176,12 +174,14 @@ class Zk(object):
       path='%s/%s/monitoring/rb'%(metadata.experiment_path,self.run_id),\
       func=_open_barrier,send_event=True)
 
+    #watches for tracking joined subscribers
     joined_sub_watches=[ChildrenWatch(client=self._zk,\
       path='%s/%s/sub/region_%s/%s'%\
         (metadata.experiment_path,self.run_id,client[3:client.index('-')],client),\
       func=_joined_endpoint_listener,send_event=True)\
       for client in self.conf.client_numSubscribers.keys()]
 
+    #watches for tracking joined publishers
     joined_pub_watches=[ChildrenWatch(client=self._zk,\
       path='%s/%s/pub/region_%s/%s'%\
        (metadata.experiment_path,self.run_id,client[3:client.index('-')],client),\

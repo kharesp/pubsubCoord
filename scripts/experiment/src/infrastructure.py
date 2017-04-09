@@ -1,10 +1,16 @@
 import argparse,metadata,conf,subprocess
 from kazoo.client import KazooClient
 
+"""
+Script that sets up the infrastructure before testing.
+"""
 class Infrastructure(object):
   def __init__(self,conf_file,teardown):
+    #flag to determine whether to teardown existing infrastructure
     self.teardown=teardown
+    #load test configuration
     self.conf=conf.Conf(conf_file)
+    #connect to zk
     self._zk=KazooClient(hosts=metadata.zk)
     self._zk.start()
     
@@ -43,7 +49,7 @@ class Infrastructure(object):
   def kill_existing_processes(self):
     #kill existing Broker and RTI routing service processes on brokers
     command_string='cd %s && ansible-playbook playbooks/experiment/kill.yml  --limit %s\
-      --extra-vars="pattern=Broker,rtirouting"'%(metadata.ansible,self.conf.brokers)
+      --extra-vars="pattern=Broker,RoutingService"'%(metadata.ansible,self.conf.brokers)
     subprocess.check_call(['bash','-c', command_string])
 
   def delete_zk_path(self,path):
@@ -62,10 +68,10 @@ class Infrastructure(object):
     self._zk.ensure_path(metadata.topics_path)
 
   def setup_infrastructure(self):
-    #clean shmem resources on routing brokers
-    #command_string='cd %s && ansible-playbook playbooks/experiment/shmem.yml  --limit %s'%\
-    #  (metadata.ansible,','.join(self.conf.rbs))
-    #subprocess.check_call(['bash','-c',command_string])
+    #clean shmem resources on brokers
+    command_string='cd %s && ansible-playbook playbooks/experiment/shmem.yml  --limit %s'%\
+      (metadata.ansible,self.conf.brokers)
+    subprocess.check_call(['bash','-c',command_string])
 
     #disable multicast on routing brokers
     command_string='cd %s && ansible-playbook playbooks/experiment/disable_multicast.yml  --limit %s'%\

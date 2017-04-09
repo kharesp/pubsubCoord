@@ -46,8 +46,8 @@ public class Monitor {
 		}	
 
 		new File(outDir+"/"+runId).mkdirs();
-		utilStatsFile=String.format("%s/%s/util_%s_%s_%s.csv",outDir,runId,brokerType,hostName,processId);
-		nwStatsFile=String.format("%s/%s/nw_%s_%s_%s.csv",outDir,runId,brokerType,hostName,processId);
+		utilStatsFile=String.format("%s/%s/util_%s_%s.csv",outDir,runId,hostName,processId);
+		nwStatsFile=String.format("%s/%s/nw_%s_%s.csv",outDir,runId,hostName,processId);
 		
 
 		client= CuratorFrameworkFactory.newClient(zkConnector, new ExponentialBackoffRetry(1000, 3));
@@ -110,10 +110,10 @@ public class Monitor {
 			BufferedReader stdErr = new BufferedReader(new InputStreamReader(p.getErrorStream()));
 			String line;
 			while ((line=stdInp.readLine()) != null) {
-                writer.write(line);
+                writer.write(line+"\n");
             }
 			while ((line=stdErr.readLine()) != null) {
-				logger.error(line);
+				logger.error(line+"\n");
             }
 			stdInp.close();
 			stdErr.close();
@@ -125,7 +125,7 @@ public class Monitor {
 		}
 	}
 	
-	public static void Main(String args[]){
+	public static void main(String args[]){
 
 		if(args.length < 4){
 			System.out.println("Usage: Monitor brokerType outDir runId zkConnector");
