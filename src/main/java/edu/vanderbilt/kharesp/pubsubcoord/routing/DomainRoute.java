@@ -1,14 +1,9 @@
 package edu.vanderbilt.kharesp.pubsubcoord.routing;
 
 import java.lang.reflect.Method;
-import java.net.InetAddress;
 import java.util.HashMap;
 import java.util.Map;
 import org.apache.log4j.Logger;
-import com.rti.dds.domain.DomainParticipantFactory;
-import com.rti.dds.domain.DomainParticipantQos;
-import com.rti.dds.infrastructure.PropertyQosPolicyHelper;
-import com.rti.dds.infrastructure.TransportBuiltinKind;
 import com.rti.dds.topic.Topic;
 import com.rti.dds.topic.TypeSupportImpl;
 import edu.vanderbilt.kharesp.pubsubcoord.brokers.EdgeBroker;
@@ -50,33 +45,33 @@ public class DomainRoute {
 		
 		if(routeType.equals(RB_DOMAIN_ROUTE)){
 			firstParticipant=new DefaultParticipant(RoutingBroker.WAN_DOMAIN_ID,
-					tcpWanTransportQoS(RoutingBroker.RB_P1_BIND_PORT));
+					TransportQos.tcpWanTransport(RoutingBroker.RB_P1_BIND_PORT));
 			secondParticipant= new DefaultParticipant(RoutingBroker.WAN_DOMAIN_ID,
-					tcpWanTransportQoS(RoutingBroker.RB_P2_BIND_PORT));
+					TransportQos.tcpWanTransport(RoutingBroker.RB_P2_BIND_PORT));
 
 		}else if(routeType.equals(EB_DOMAIN_ROUTE)){
 			firstParticipant=new DefaultParticipant(EdgeBroker.DEFAULT_DOMAIN_ID,
-					udpv4TransportQos());
+					TransportQos.udpv4Transport());
 			secondParticipant= new DefaultParticipant(EdgeBroker.WAN_DOMAIN_ID,
-					tcpWanTransportQoS(EdgeBroker.EB_P2_BIND_PORT));	
+					TransportQos.tcpWanTransport(EdgeBroker.EB_P2_BIND_PORT));	
 
 		}else if(routeType.equals(EB_PUB_DOMAIN_ROUTE)){
 			firstParticipant=new DefaultParticipant(EdgeBroker.PUB_DOMAIN_ID,
-					udpv4TransportQos());
+					TransportQos.udpv4Transport());
 			secondParticipant= new DefaultParticipant(EdgeBroker.WAN_DOMAIN_ID,
-					tcpWanTransportQoS(EdgeBroker.EB_P2_PUB_BIND_PORT));	
+					TransportQos.tcpWanTransport(EdgeBroker.EB_P2_PUB_BIND_PORT));	
 
 		}else if(routeType.equals(EB_SUB_DOMAIN_ROUTE)){
 			firstParticipant=new DefaultParticipant(EdgeBroker.SUB_DOMAIN_ID,
-					udpv4TransportQos());
+					TransportQos.udpv4Transport());
 			secondParticipant= new DefaultParticipant(EdgeBroker.WAN_DOMAIN_ID,
-					tcpWanTransportQoS(EdgeBroker.EB_P2_SUB_BIND_PORT));	
+					TransportQos.tcpWanTransport(EdgeBroker.EB_P2_SUB_BIND_PORT));	
 
 		}else if(routeType.equals(EB_LOCAL_DOMAIN_ROUTE)){
 			firstParticipant=new DefaultParticipant(EdgeBroker.PUB_DOMAIN_ID,
-					udpv4TransportQos());
+					TransportQos.udpv4Transport());
 			secondParticipant= new DefaultParticipant(EdgeBroker.SUB_DOMAIN_ID,
-					udpv4TransportQos());	
+					TransportQos.udpv4Transport());	
 		}
 		else{
 			logger.error(String.format("Domain route:%s of route type:%s not recognized",
@@ -141,7 +136,7 @@ public class DomainRoute {
 							topicName,domainRouteName));
 
 					subscription_topic_sessions.put(topicName,
-							new TopicSession(sessionType, t1, t2, typeSupport,
+							new TopicSession(domainRouteName,sessionType, t1, t2, typeSupport,
 									firstParticipant, secondParticipant));
 
 				} else {
@@ -149,7 +144,7 @@ public class DomainRoute {
 					//we don't need to register types or create topics
 					TopicSession<?> session = publication_topic_sessions.get(topicName);
 					subscription_topic_sessions.put(topicName,
-							new TopicSession(sessionType, session.t1,session.t2,session.typeSupport,
+							new TopicSession(domainRouteName,sessionType, session.t1,session.t2,session.typeSupport,
 									firstParticipant, secondParticipant));
 
 				}
@@ -178,7 +173,7 @@ public class DomainRoute {
 					logger.debug(String.format("Created topic:%s for second participant in domain route:%s",
 							topicName,domainRouteName));
 					publication_topic_sessions.put(topicName,
-							new TopicSession(sessionType, t1, t2, typeSupport,
+							new TopicSession(domainRouteName, sessionType, t1, t2, typeSupport,
 									firstParticipant, secondParticipant));
 
 				} else {
@@ -186,7 +181,7 @@ public class DomainRoute {
 					//we don't need to register types or create topics
 					TopicSession<?> session = subscription_topic_sessions.get(topicName);
 					publication_topic_sessions.put(topicName,
-							new TopicSession(sessionType, session.t1,session.t2,session.typeSupport,
+							new TopicSession(domainRouteName,sessionType, session.t1,session.t2,session.typeSupport,
 									firstParticipant, secondParticipant));
 				}
 			}else{
@@ -256,37 +251,6 @@ public class DomainRoute {
 		}
 		logger.debug(String.format("Deleted %s topic session of type:%s from domain route:%s",
 				topic_name, session_type, domainRouteName));
-	}
-	
-	
-	private DomainParticipantQos tcpWanTransportQoS(String port) throws Exception
-	{
-		DomainParticipantQos participant_qos = new DomainParticipantQos();
-		DomainParticipantFactory.TheParticipantFactory.get_default_participant_qos(participant_qos);
-		String address = InetAddress.getLocalHost().getHostAddress();
-
-		participant_qos.transport_builtin.mask = TransportBuiltinKind.MASK_NONE;
-		PropertyQosPolicyHelper.add_property(participant_qos.property, "dds.transport.load_plugins",
-				"dds.transport.TCPv4.tcp1", false);
-		PropertyQosPolicyHelper.add_property(participant_qos.property, "dds.transport.TCPv4.tcp1.library",
-				"nddstransporttcp", false);
-		PropertyQosPolicyHelper.add_property(participant_qos.property, "dds.transport.TCPv4.tcp1.create_function",
-				"NDDS_Transport_TCPv4_create", false);
-		PropertyQosPolicyHelper.add_property(participant_qos.property, "dds.transport.TCPv4.tcp1.parent.classid",
-				"NDDS_TRANSPORT_CLASSID_TCPV4_WAN", false);
-		PropertyQosPolicyHelper.add_property(participant_qos.property, "dds.transport.TCPv4.tcp1.public_address",
-				address + ":" + port, false);
-		PropertyQosPolicyHelper.add_property(participant_qos.property, "dds.transport.TCPv4.tcp1.server_bind_port",
-				port, false);
-		return participant_qos;
-	}
-	
-	private DomainParticipantQos udpv4TransportQos() throws Exception
-	{
-		DomainParticipantQos participant_qos = new DomainParticipantQos();
-		DomainParticipantFactory.TheParticipantFactory.get_default_participant_qos(participant_qos);
-		participant_qos.transport_builtin.mask = TransportBuiltinKind.UDPv4;
-		return participant_qos;
 	}
 	
 	private TypeSupportImpl get_type_support_instance(String type_name) {

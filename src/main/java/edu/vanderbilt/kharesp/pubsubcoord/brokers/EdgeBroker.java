@@ -99,7 +99,7 @@ public class EdgeBroker {
         	//Create domain route between EB's publishing domain and WAN domain
     		logger.debug(String.format("EB:%s will create a DomainRoute:%s between publisher's local domain id:%d and wan domain id:%d\n",
         			ebAddress,pubDomainRouteName,PUB_DOMAIN_ID,WAN_DOMAIN_ID));
-        	rs.createDomainRoute(subDomainRouteName,DomainRoute.EB_PUB_DOMAIN_ROUTE);
+        	rs.createDomainRoute(pubDomainRouteName,DomainRoute.EB_PUB_DOMAIN_ROUTE);
     		
     		//Create domain route between EB's subscribing domain and WAN domain
     		logger.debug(String.format("EB:%s will create a DomainRoute:%s between subscriber's local domain id:%d and wan domain id:%d\n",

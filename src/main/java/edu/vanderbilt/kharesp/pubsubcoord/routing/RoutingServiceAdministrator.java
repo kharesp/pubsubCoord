@@ -14,7 +14,7 @@ public class RoutingServiceAdministrator {
 	
 	public RoutingServiceAdministrator() throws Exception{
 		//DDS participant for sending commands to Routing Service operating in RS_ADMIN_DOMAIN_ID 
-		participant= new DefaultParticipant(RoutingService.RS_ADMIN_DOMAIN_ID);
+		participant= new DefaultParticipant(RoutingService.RS_ADMIN_DOMAIN_ID,TransportQos.shmemParticipantQos());
 		//register Command type
 		participant.registerType(CommandTypeSupport.get_instance());
 		//publisher to send commands

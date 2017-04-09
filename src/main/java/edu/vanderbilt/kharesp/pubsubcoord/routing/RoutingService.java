@@ -62,7 +62,7 @@ public class RoutingService {
 		logger.debug("Initializing Routing Service entities");
 		try{
 			//Creating DDS Domain Participant
-			participant= new DefaultParticipant(RS_ADMIN_DOMAIN_ID);
+			participant= new DefaultParticipant(RS_ADMIN_DOMAIN_ID,TransportQos.shmemParticipantQos());
 			//Registering Command Datatype
 			participant.registerType(CommandTypeSupport.get_instance());
 			//Creating a Subscriber to receive Commands
