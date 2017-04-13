@@ -1,12 +1,13 @@
 ansible='/home/kharesp/workspace/ansible/pubsubCoord'
-zk='129.59.107.97:2181,129.59.107.57:2181,129.59.107.59:2181'
+public_zk='129.59.107.59:2181,129.59.107.57:2181,129.59.107.97:2181'
+zk='10.2.1.19:2181,10.2.1.20:2181,10.2.1.21:2181'
 leader_path='/leader'
 topics_path='/topics'
 rb_path='/routingBrokers'
 experiment_path='/experiment'
-initial_samples=1500
+initial_samples=10
 max_subscribers_per_host=1
-max_publishers_per_host=1
+max_publishers_per_host=10
 
 latency_summary_header='topic,#subscribers,\
 mean latency(ms),std_dev latency(ms),min latency(ms),max latency(ms),\

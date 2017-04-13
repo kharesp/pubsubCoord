@@ -73,25 +73,38 @@ public class TopicSession<T extends BaseDataSample>{
 		//Subscription_session: Subscriber in first participant and publisher in second participant
 		if(session_type.equals(SUBSCRIPTION_SESSION)){
 			subscriber= firstParticipant.get_default_subscriber();
+
 			DataReaderQos readerQos= new DataReaderQos();
 			subscriber.get_default_datareader_qos(readerQos);
 			readerQos.user_data.value.addAllByte(RoutingService.INFRASTRUCTURE_NODE_IDENTIFIER.getBytes());
+			logger.debug(String.format("Session Name:%s Session Type:%s DR Reliability Qos:%s DR History Qos:%s DR Durability Qos:%s",
+					sessionName,sessionType,readerQos.reliability.kind,readerQos.history.kind,readerQos.durability.kind));
+
 
 			publisher= secondParticipant.get_default_publisher();
+
 			DataWriterQos writerQos= new DataWriterQos();
 			publisher.get_default_datawriter_qos(writerQos);
 			writerQos.user_data.value.addAllByte(RoutingService.INFRASTRUCTURE_NODE_IDENTIFIER.getBytes());
+			logger.debug(String.format("Session Name:%s Session Type:%s DW Reliability Qos:%s DW History Qos:%s DW Durability Qos:%s",
+					sessionName,sessionType,writerQos.reliability.kind,writerQos.history.kind,writerQos.durability.kind));
 
 			dw= new GenericDataWriter<T>(publisher,t2,writerQos);
 			dr= new GenericDataReader<T>(subscriber,t1,typeSupport,readerQos){
 				@Override
 				public void process(T sample, SampleInfo info) {
+					long start=System.nanoTime();
+					long source_ts=(((long)info.source_timestamp.sec)*1000)
+							+ (info.source_timestamp.nanosec/1000000);
 					long reception_ts=(((long)info.reception_timestamp.sec)*1000)
 							+ (info.reception_timestamp.nanosec/1000000);
-					long take_ts=System.currentTimeMillis();
-					long queueing_delay=take_ts-reception_ts;
-					writer.write(String.format("%d,%d\n", take_ts, queueing_delay));
+					long delay=reception_ts-source_ts;
+					writer.write(String.format("source_ts:%d,reception_ts:%d,delay:%d\n",
+							source_ts,reception_ts,delay));
 					dw.write(sample);
+					long end=System.nanoTime();
+					long write_time=(end-start)/1000000;
+					writer.write(String.format("processing time:%d\n",write_time));
 				}
 			};
 			dr.receive();
@@ -100,14 +113,20 @@ public class TopicSession<T extends BaseDataSample>{
 		//Publication_session: Publisher in first participant and Subscriber in second participant
 		else if(session_type.equals(PUBLICATION_SESSION)){
 			publisher=firstParticipant.get_default_publisher();
+
 			DataWriterQos writerQos= new DataWriterQos();
 			publisher.get_default_datawriter_qos(writerQos);
 			writerQos.user_data.value.addAllByte(RoutingService.INFRASTRUCTURE_NODE_IDENTIFIER.getBytes());
+			logger.debug(String.format("Session Name:%s Session Type:%s DW Reliability Qos:%s DW History Qos:%s DW Durability Qos:%s",
+					sessionName,sessionType,writerQos.reliability.kind,writerQos.history.kind,writerQos.durability.kind));
 
 			subscriber=secondParticipant.get_default_subscriber();
+
 			DataReaderQos readerQos= new DataReaderQos();
 			subscriber.get_default_datareader_qos(readerQos);
 			readerQos.user_data.value.addAllByte(RoutingService.INFRASTRUCTURE_NODE_IDENTIFIER.getBytes());
+			logger.debug(String.format("Session Name:%s Session Type:%s DR Reliability Qos:%s DR History Qos:%s DR Durability Qos:%s",
+					sessionName,sessionType,readerQos.reliability.kind,readerQos.history.kind,readerQos.durability.kind));
 
 			dw= new GenericDataWriter<T>(publisher,t1,writerQos);
 			
@@ -117,11 +136,13 @@ public class TopicSession<T extends BaseDataSample>{
 			dr= new GenericDataReader<T>(subscriber,cft,typeSupport,readerQos){
 				@Override
 				public void process(T sample, SampleInfo info) {
+					long source_ts=(((long)info.source_timestamp.sec)*1000)
+							+ (info.source_timestamp.nanosec/1000000);
 					long reception_ts=(((long)info.reception_timestamp.sec)*1000)
 							+ (info.reception_timestamp.nanosec/1000000);
-					long take_ts=System.currentTimeMillis();
-					long queueing_delay=take_ts-reception_ts;
-					writer.write(String.format("%d,%d\n", take_ts, queueing_delay));
+					long delay=reception_ts-source_ts;
+					writer.write(String.format("source_ts:%d,reception_ts:%d,delay:%d\n",
+							source_ts,reception_ts,delay));
 					dw.write(sample);
 				}
 			};
@@ -156,5 +177,6 @@ public class TopicSession<T extends BaseDataSample>{
 	public String domainRouteName(){
 		return domainRouteName;
 	}
+	
 		
 }

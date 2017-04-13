@@ -79,6 +79,7 @@ public class ClientPublisher {
 
 		logger.debug(String.format("Starting publisher for topic:%s in domainId:%d",
 				topicName,domainId));
+		int run_id=Integer.parseInt(runId);
 		DefaultParticipant participant = null;
 		DataSample_64B instance = new DataSample_64B();
 
@@ -105,6 +106,7 @@ public class ClientPublisher {
 			//publish data
             logger.debug("Publisher will start sending data");
 			for (int count = 0; count < sampleCount; ++count) {
+				instance.run_id=run_id;
 				instance.sample_id = count;
 				//set region_id field to identify this sample's originating network. 
 				instance.region_id=network_id;
@@ -112,9 +114,10 @@ public class ClientPublisher {
 
 				datawriter.write(instance);
 
-				if(count%500==0){
-					logger.debug("Sent sample:" + count);
-				}
+				//if(count%500==0){
+					logger.debug(String.format("Sent sample with sample_id:%d and run_id:%d",
+							count,run_id));
+				//}
 				try {
 					Thread.sleep(sendInterval);
 				} catch (InterruptedException ix) {
@@ -122,6 +125,7 @@ public class ClientPublisher {
 					break;
 				}
 			}
+
 			logger.debug("Publisher sent all samples");
 
 			//Don't exit until all subscribers have exited

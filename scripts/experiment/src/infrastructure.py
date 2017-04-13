@@ -1,4 +1,4 @@
-import argparse,metadata,conf,subprocess
+import argparse,metadata,conf,subprocess,time
 from kazoo.client import KazooClient
 
 """
@@ -11,7 +11,7 @@ class Infrastructure(object):
     #load test configuration
     self.conf=conf.Conf(conf_file)
     #connect to zk
-    self._zk=KazooClient(hosts=metadata.zk)
+    self._zk=KazooClient(hosts=metadata.public_zk)
     self._zk.start()
     
   def setup(self):
@@ -35,6 +35,8 @@ class Infrastructure(object):
     #kill existing routing service, broker processes
     print("\n\n\nKilling all existing rb,eb,rs processes on brokers")
     self.kill_existing_processes()
+    print("\n\n\nWaiting for 10 seconds for cleanup")
+    time.sleep(10)
 
     #clean zk tree
     print("\n\n\nCleaning up zk tree: rb, topics and leader path")

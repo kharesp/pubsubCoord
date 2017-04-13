@@ -3,7 +3,6 @@ package edu.vanderbilt.kharesp.pubsubcoord.clients;
 
 import com.rti.dds.infrastructure.Copyable;
 import com.rti.dds.infrastructure.RETCODE_NO_DATA;
-import com.rti.dds.infrastructure.ResourceLimitsQosPolicy;
 import com.rti.dds.infrastructure.StatusKind;
 import com.rti.dds.subscription.DataReader;
 import com.rti.dds.subscription.DataReaderAdapter;
@@ -78,9 +77,11 @@ public abstract class GenericDataReader<T extends Copyable> {
 	@SuppressWarnings("unchecked") 
 	private void  take(){
 		try {
-			reader.take_untyped(dataSeq, infoSeq, ResourceLimitsQosPolicy.LENGTH_UNLIMITED,
+			//only take one sample at a time
+			reader.take_untyped(dataSeq, infoSeq, 1,
 					SampleStateKind.ANY_SAMPLE_STATE, ViewStateKind.ANY_VIEW_STATE,
 					InstanceStateKind.ANY_INSTANCE_STATE);
+			
 
 			for (int j = 0; j < dataSeq.size(); ++j) {
 				SampleInfo info=(SampleInfo)infoSeq.get(j);

@@ -1,6 +1,7 @@
-import numpy as np
-import os,metadata
-import matplotlib.pyplot as plt
+import os,numpy as np
+import matplotlib.pyplot as plt,sys,os
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+import metadata
 
 def _get_topic_files_map(test_dir,num_topics):
   topic_files_map={}
@@ -19,7 +20,7 @@ def process_topic_files(test_dir,num_topics):
     out.write(metadata.latency_summary_header)
     for topic,files in sorted(topic_files_map.items()):
       data=[np.genfromtxt(f,dtype='int,int',delimiter=',',\
-        usecols=[4,5],skip_header=1)[metadata.initial_samples:] for f in files]
+        usecols=[5,6],skip_header=1)[metadata.initial_samples:] for f in files]
 
       lengths=[len(arr) for arr in data]
       min_len=min(lengths)
@@ -34,7 +35,8 @@ def process_topic_files(test_dir,num_topics):
       out.write('%s,%d,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f,%f\n'%\
         (topic,len(files),\
         np.mean(latencies),np.std(latencies),\
-        np.amin([arr[np.nonzero(arr)] for arr in latencies]),\
+        #np.amin([arr[np.nonzero(arr)] for arr in latencies]),\
+        np.amin([arr for arr in latencies]),\
         np.amax(latencies),\
         np.percentile(latencies,90),np.percentile(latencies,99),\
         np.percentile(latencies,99.9),np.percentile(latencies,99.99),\
@@ -75,4 +77,4 @@ def plot_per_subscriber_latency(test_dir):
       plt.close()
 
 if __name__=="__main__":
-  print(_get_topic_files_map('/home/kharesp/workspace/ansible/pubsubCoord/logs/5',5))
+  process_topic_files('/home/kharesp/workspace/ansible/pubsubCoord/logs/7',1)

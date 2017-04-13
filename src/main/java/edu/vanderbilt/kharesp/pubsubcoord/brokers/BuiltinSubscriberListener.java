@@ -210,7 +210,7 @@ public class BuiltinSubscriberListener extends DataReaderAdapter {
 	private void create_EB_znode(String topic, SubscriptionBuiltinTopicData subscription_builtin_data){
 		//ensure topic path /topics/t/sub exists
 		String parent_path= (CuratorHelper.TOPIC_PATH+"/"+topic+"/sub");
-		client.ensurePathExists(parent_path);
+		client.create(parent_path,new byte[0],CreateMode.PERSISTENT);
 
 		//Create this EB's znode at /topics/t/sub/ebAddress to signify this region's interest in topic t
 		client.create(parent_path+"/"+ebAddress, subscription_builtin_data, CreateMode.PERSISTENT);

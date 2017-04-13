@@ -8,7 +8,7 @@ class Zk(object):
   def __init__(self,run_id,conf):
     self.run_id=run_id
     self.conf=conf
-    self._zk=KazooClient(hosts=metadata.zk)
+    self._zk=KazooClient(hosts=metadata.public_zk)
     self._zk.start()
 
   def clean(self):

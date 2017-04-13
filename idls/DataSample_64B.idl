@@ -1,10 +1,11 @@
 struct BaseDataSample{
 	long region_id; 
+	long run_id;
 	long priority;
 };
 
 struct DataSample_64B : BaseDataSample {
 	long sample_id;
 	long long ts_milisec;
-	long payload[11];
+	long payload[10];
 };

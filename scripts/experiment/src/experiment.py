@@ -1,6 +1,5 @@
 import argparse,subprocess,metadata,time,os,conf,zk,json
-#import process_topics,process_brokers
-from kazoo.client import KazooClient
+from plots import process_topics
 from kazoo.recipe.barrier import Barrier
 from kazoo.recipe.watchers import ChildrenWatch
 from kazoo.protocol.states import EventType
@@ -97,7 +96,12 @@ class Experiment(object):
 
   def setup_infrastructure(self):
     #ensure netem rules are set on clients
-    command_string='cd %s && ansible-playbook playbooks/experiment/netem_cli.yml  --limit %s'%\
+    #command_string='cd %s && ansible-playbook playbooks/experiment/netem_cli.yml  --limit %s'%\
+    #  (metadata.ansible,','.join(self.conf.clients))
+    #subprocess.check_call(['bash','-c',command_string])
+
+    #delete netem rules  on clients
+    command_string='cd %s && ansible-playbook playbooks/experiment/delete_netem.yml  --limit %s'%\
       (metadata.ansible,','.join(self.conf.clients))
     subprocess.check_call(['bash','-c',command_string])
 
@@ -154,7 +158,7 @@ class Experiment(object):
     
   def create_graphs(self):
     test_dir='%s/logs/%s'%(metadata.ansible,self.run_id)
-    #process_topics.process_topic_files(test_dir,self.conf.no_topics)
+    process_topics.process_topic_files(test_dir,self.conf.no_topics)
     #process_topics.plot_latency_per_topic(test_dir,self.conf.no_topics)
     #process_brokers.process_routing_service_files(test_dir,'rb')
     #process_brokers.process_routing_service_files(test_dir,'eb')

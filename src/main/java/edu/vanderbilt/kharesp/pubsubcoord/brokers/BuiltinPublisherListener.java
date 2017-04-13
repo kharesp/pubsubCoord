@@ -225,7 +225,7 @@ public class BuiltinPublisherListener extends DataReaderAdapter {
 		
 		//ensure topic path /topics/t/pub exists
 		String parent_path= (CuratorHelper.TOPIC_PATH+"/"+topic+"/pub");
-		client.ensurePathExists(parent_path);
+		client.create(parent_path,new byte[0],CreateMode.PERSISTENT);
 
 		//create this EB's znode at /topics/t/pub/ebAddress
 		client.create(parent_path+"/"+ebAddress, publication_builtin_data, CreateMode.PERSISTENT);
