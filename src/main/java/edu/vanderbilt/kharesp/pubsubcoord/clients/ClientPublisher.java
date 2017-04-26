@@ -102,6 +102,10 @@ public class ClientPublisher {
 
 			//wait before all publishers have joined to begin publishing
 			barrier.waitOnBarrier();
+			
+			//publisher will wait for some time for route formation and discovery to finish
+			logger.debug("Publisher will wait for sometime for discovery to finish");
+			Thread.sleep(5000);
 
 			//publish data
             logger.debug("Publisher will start sending data");
@@ -114,12 +118,13 @@ public class ClientPublisher {
 
 				datawriter.write(instance);
 
-				//if(count%500==0){
-					logger.debug(String.format("Sent sample with sample_id:%d and run_id:%d",
-							count,run_id));
-				//}
+				logger.debug(String.format("Sent sample with sample_id:%d, run_id:%d, sender_ts:%d",
+							count,run_id,instance.ts_milisec));
 				try {
-					Thread.sleep(sendInterval);
+					long sleep_interval=exponentialInterarrival(sendInterval);
+					if(sleep_interval>0){
+						Thread.sleep(sleep_interval);
+					}
 				} catch (InterruptedException ix) {
 					logger.error(ix.getMessage(),ix);
 					break;
@@ -146,6 +151,10 @@ public class ClientPublisher {
 				//ignored
 			}
 		}
+	}
+	
+	public static long exponentialInterarrival(double averageInterval){
+		return (long)(averageInterval*(-Math.log(Math.random())));
 	}
 
 }

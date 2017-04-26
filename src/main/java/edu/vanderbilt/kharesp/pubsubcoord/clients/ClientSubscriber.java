@@ -63,7 +63,7 @@ public class ClientSubscriber {
 			new File(outdir + "/" + runId).mkdirs();
 			latencyFile = outdir + "/" + runId + "/" + file_name;
 			writer = new PrintWriter(latencyFile, "UTF-8");
-			writer.write("reception ts,recepiton date,reception time,sample id,source ts,latency(ms),interarrival time(ms), delay (ms)\n");
+			writer.write("reception ts,recepiton date,reception time,sample id,sender ts,latency(ms),source ts,reception delay(ms),interarrival time(ms)\n");
 
 			if (typeName.equals("DataSample_64B")) {
 				receive_DataSample_64B(domainId, topicName, sampleCount,runId);
@@ -80,7 +80,6 @@ public class ClientSubscriber {
 	}
 
 	public static void receive_DataSample_64B(int domainId, String topicName, int sampleCount,String runId) {
-		int run_id=Integer.parseInt(runId);
 		DefaultParticipant participant = null;
 		logger.debug(String.format("Starting subscriber for topic:%s in domainId:%d", topicName,domainId));
 		try {
@@ -95,26 +94,24 @@ public class ClientSubscriber {
 				private long prev_recv_ts=-1;
 				@Override
 				public void process(DataSample_64B sample,SampleInfo info) {
-					//if(sample.run_id==run_id && sample.sample_id==receiveCount){
 						receiveCount += 1;
 						long source_ts = (((long) info.source_timestamp.sec) * 1000)
 								+ (info.source_timestamp.nanosec / 1000000);
 						long reception_ts = (((long) info.reception_timestamp.sec) * 1000)
 								+ (info.reception_timestamp.nanosec / 1000000);
-						long delay = reception_ts - source_ts;
+						long reception_delay = reception_ts - source_ts;
+
 						long interarrival_time = ((prev_recv_ts == -1) ? 0 : (reception_ts - prev_recv_ts));
 						prev_recv_ts = reception_ts;
-
-						// if(receiveCount%500==0){
-						logger.debug(
-								String.format("Received sample:%d, run_id:%d at ts:%d. ts at which sample was sent:%d. delay:%d\n",
-										sample.sample_id, sample.run_id,reception_ts, sample.ts_milisec, delay));
-						// }
 						long latency = Math.abs(reception_ts - sample.ts_milisec);
-						writer.write(String.format("%d,%s,%d,%d,%d,%d,%d\n", reception_ts,
-								sdf.format(new Date(reception_ts)), sample.sample_id, source_ts, latency,
-								interarrival_time, delay));
-					//}
+
+						logger.debug(String.format("Received sample:%d, sample.run_id:%d, reception_ts:%d,"
+								+ " sender_ts:%d, latency:%d, source_ts:%d, delay:%d\n",
+								sample.sample_id, sample.run_id,reception_ts, sample.ts_milisec,latency, source_ts,reception_delay));
+
+						writer.write(String.format("%d,%s,%d,%d,%d,%d,%d,%d\n", reception_ts,
+								sdf.format(new Date(reception_ts)), sample.sample_id, sample.ts_milisec, latency,
+								source_ts, reception_delay, interarrival_time));
 				}
 			};
 			

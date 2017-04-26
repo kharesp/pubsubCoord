@@ -66,7 +66,7 @@ public class TopicSession<T extends BaseDataSample>{
 				session_type+ "_" +
 				hostName + ".csv";
 		writer = new PrintWriter(file_name, "UTF-8");
-		writer.write("ts,queueing_delay(ms)\n");
+		writer.write("source_ts,processing_end_ts,queueing_delay(ms)\n");
 		
 		logger= Logger.getLogger(this.getClass().getSimpleName());
 
@@ -93,18 +93,19 @@ public class TopicSession<T extends BaseDataSample>{
 			dr= new GenericDataReader<T>(subscriber,t1,typeSupport,readerQos){
 				@Override
 				public void process(T sample, SampleInfo info) {
-					long start=System.nanoTime();
+
 					long source_ts=(((long)info.source_timestamp.sec)*1000)
 							+ (info.source_timestamp.nanosec/1000000);
-					long reception_ts=(((long)info.reception_timestamp.sec)*1000)
-							+ (info.reception_timestamp.nanosec/1000000);
-					long delay=reception_ts-source_ts;
-					writer.write(String.format("source_ts:%d,reception_ts:%d,delay:%d\n",
-							source_ts,reception_ts,delay));
+					//long reception_ts=(((long)info.reception_timestamp.sec)*1000)
+					//		+ (info.reception_timestamp.nanosec/1000000);
+
 					dw.write(sample);
-					long end=System.nanoTime();
-					long write_time=(end-start)/1000000;
-					writer.write(String.format("processing time:%d\n",write_time));
+
+					long processing_end_ts=System.currentTimeMillis();
+					long sample_processing_time=(processing_end_ts-source_ts);
+					writer.write(String.format("%d,%d,%d\n",
+							source_ts,processing_end_ts,sample_processing_time));
+
 				}
 			};
 			dr.receive();
@@ -138,12 +139,14 @@ public class TopicSession<T extends BaseDataSample>{
 				public void process(T sample, SampleInfo info) {
 					long source_ts=(((long)info.source_timestamp.sec)*1000)
 							+ (info.source_timestamp.nanosec/1000000);
-					long reception_ts=(((long)info.reception_timestamp.sec)*1000)
-							+ (info.reception_timestamp.nanosec/1000000);
-					long delay=reception_ts-source_ts;
-					writer.write(String.format("source_ts:%d,reception_ts:%d,delay:%d\n",
-							source_ts,reception_ts,delay));
+					//long reception_ts=(((long)info.reception_timestamp.sec)*1000)
+					//		+ (info.reception_timestamp.nanosec/1000000);
 					dw.write(sample);
+
+					long processing_end_ts=System.currentTimeMillis();
+					long sample_processing_time=(processing_end_ts-source_ts);
+					writer.write(String.format("%d,%d,%d\n",
+							source_ts,processing_end_ts,sample_processing_time));
 				}
 			};
 			dr.receive();
@@ -156,14 +159,18 @@ public class TopicSession<T extends BaseDataSample>{
 	public void deleteEndpoints() throws Exception{
 		writer.close();
 		if(sessionType.equals(SUBSCRIPTION_SESSION)){
-			dr.delete_datareader();
-			dw.delete_datawriter();
+			//dr.delete_datareader();
+			//dw.delete_datawriter();
+            subscriber.delete_contained_entities();
+			publisher.delete_contained_entities();
 			firstParticipant.delete_subscriber(subscriber);
 			secondParticipant.delete_publisher(publisher);
 			
 		}else if(sessionType.equals(PUBLICATION_SESSION)){
-			dr.delete_datareader();
-			dw.delete_datawriter();
+			//dr.delete_datareader();
+			//dw.delete_datawriter();
+            subscriber.delete_contained_entities();
+			publisher.delete_contained_entities();
 			firstParticipant.delete_publisher(publisher);
 			secondParticipant.delete_subscriber(subscriber);
 		}else{
@@ -177,6 +184,5 @@ public class TopicSession<T extends BaseDataSample>{
 	public String domainRouteName(){
 		return domainRouteName;
 	}
-	
 		
 }

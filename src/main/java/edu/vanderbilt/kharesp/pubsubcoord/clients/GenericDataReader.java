@@ -3,6 +3,7 @@ package edu.vanderbilt.kharesp.pubsubcoord.clients;
 
 import com.rti.dds.infrastructure.Copyable;
 import com.rti.dds.infrastructure.RETCODE_NO_DATA;
+import com.rti.dds.infrastructure.ResourceLimitsQosPolicy;
 import com.rti.dds.infrastructure.StatusKind;
 import com.rti.dds.subscription.DataReader;
 import com.rti.dds.subscription.DataReaderAdapter;
@@ -77,12 +78,19 @@ public abstract class GenericDataReader<T extends Copyable> {
 	@SuppressWarnings("unchecked") 
 	private void  take(){
 		try {
-			//only take one sample at a time
-			reader.take_untyped(dataSeq, infoSeq, 1,
+			/*
+			SampleInfo info= new SampleInfo();
+			T data= (T) typeSupport.create_data();
+			reader.take_next_sample_untyped(data, info);
+
+			if(info.valid_data)
+			{
+				process(data,info);
+			}
+			*/
+			reader.take_untyped(dataSeq, infoSeq, ResourceLimitsQosPolicy.LENGTH_UNLIMITED,
 					SampleStateKind.ANY_SAMPLE_STATE, ViewStateKind.ANY_VIEW_STATE,
 					InstanceStateKind.ANY_INSTANCE_STATE);
-			
-
 			for (int j = 0; j < dataSeq.size(); ++j) {
 				SampleInfo info=(SampleInfo)infoSeq.get(j);
 				SampleInfo infoCopy= new SampleInfo();
@@ -97,7 +105,10 @@ public abstract class GenericDataReader<T extends Copyable> {
 			}
 		} catch (RETCODE_NO_DATA noData)
 		{
-		} finally {
+		} catch(Exception e){
+			System.out.println(e.getMessage());
+		}
+		finally {
 			reader.return_loan_untyped(dataSeq, infoSeq);
 		}
 	}
